@@ -104,6 +104,7 @@ Android `cdylib`. Это предотвращает расхождение ин�
 | Дата | ID | Commit / MR | Проверка | Результат / ссылка на issue |
 | --- | --- | --- | --- | --- |
 | — | — | — | — | — |
+| 2026-07-25 | A2.1 | working tree | `git diff --check` | Added the isolated Podman Android toolchain definition and host wrapper; image build is still pending. |
 
 ### Обязательные проверки после изменений
 
@@ -127,7 +128,12 @@ Android `cdylib`. Это предотвращает расхождение ин�
     системные зависимости доступны; иначе записать конкретную недостающую
     зависимость.
 - [ ] **A2.** Создать отдельный Android CI environment.
+  - [x] Добавить изолированный `build-aux/android/Containerfile` и
+    `podman.sh`: SDK/NDK/JDK/Rust/Meson/Pixiewood устанавливаются только в
+    image, а host `adb` используется только для install/logcat.
   - [ ] Выбрать JDK, Android SDK/Build Tools, NDK, Gradle и emulator image.
+  - [ ] Собрать образ через `build-aux/android/podman.sh image` и проверить
+    `pixiewood --version` внутри него на чистом host.
   - [ ] Зафиксировать версии в контейнере либо reproducible setup-скрипте.
   - [ ] Убедиться, что SDK/NDK не устанавливаются и не запрашиваются при
     desktop-сборке.

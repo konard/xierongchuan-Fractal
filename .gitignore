@@ -19,3 +19,9 @@ target/
 # Dynamically-generated files
 src/config.rs
 hooks/checks-bin
+
+# Android build container and Pixiewood output
+.android-container/
+.pixiewood/
+.buildconfig
+subprojects/

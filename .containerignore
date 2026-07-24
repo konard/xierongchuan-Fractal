@@ -1,0 +1,11 @@
+.android-container
+.flatpak
+.flatpak-builder
+.fenv
+.foundry
+.git
+.pixiewood
+_build
+build
+builddir
+target
