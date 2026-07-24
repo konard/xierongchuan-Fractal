@@ -1,0 +1,21 @@
+# Common build directory names
+_build/
+build/
+builddir/
+
+# Cargo
+target/
+
+# Supported build systems
+.flatpak-builder
+.flatpak
+.fenv
+.foundry
+
+# Temporary files
+*.ui.in~
+*.ui~
+
+# Dynamically-generated files
+src/config.rs
+hooks/checks-bin

@@ -1,0 +1,41 @@
+[graph]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+]
+
+[advisories]
+yanked = "deny"
+ignore = [
+    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 is unmaintained but used by dependencies of matrix-sdk" },
+]
+
+[bans]
+multiple-versions = "allow"
+
+# To check if a license if compatible with our GPL v3.0 license, see: https://www.gnu.org/licenses/license-list.html
+# Keep list sorted alphabetically.
+[licenses]
+unused-allowed-license = "deny"
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "GPL-3.0-or-later",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+[sources]
+unknown-git = "deny"
+required-git-spec = "rev"
+allow-git = [
+    "https://github.com/ruma/ruma",
+    "https://github.com/matrix-org/matrix-rust-sdk",
+]
+unused-allowed-source = "allow"

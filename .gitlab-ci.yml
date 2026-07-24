@@ -1,0 +1,25 @@
+stages:
+  - check
+  - build
+  - test
+  - deploy
+
+variables:
+  FLATPAK_MODULE: "fractal"
+  MANIFEST_PATH: "build-aux/org.gnome.Fractal.Devel.json"
+  APP_ID: "org.gnome.Fractal.Devel"
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
+include:
+  - local: .gitlab-ci/check.yml
+  - local: .gitlab-ci/build.yml
+  - local: .gitlab-ci/test.yml
+  - component: "gitlab.gnome.org/GNOME/citemplates/basic-deploy-docs@master"
+    inputs:
+      docs-job-name: "build-docs"
+  - local: .gitlab-ci/publish_nightly.yml
+    rules:
+      - if: $CI_COMMIT_BRANCH == "main"

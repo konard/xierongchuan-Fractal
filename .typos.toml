@@ -1,0 +1,17 @@
+[default.extend-words]
+gir = "gir"
+inout = "inout"
+numer = "numer" # Short for numerator in GStreamer
+ue = "ue" # End of word after mnemonic
+
+[type.po]
+extend-glob = ["*.po"]
+check-file = false
+
+[type.json]
+extend-glob = ["*.json"]
+check-file = false
+
+[type.png]
+extend-glob = ["*.png"]
+check-file = false
