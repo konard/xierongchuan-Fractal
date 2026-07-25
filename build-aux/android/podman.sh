@@ -11,7 +11,9 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 image=${FRACTAL_ANDROID_IMAGE:-localhost/fractal-android-builder:dev}
 state_dir="$project_dir/.android-container"
-apk_relative_path=.pixiewood/android/app/build/outputs/apk/debug/app-debug.apk
+# Pixiewood splits the debug package per ABI, so the default APK is the
+# arm64-v8a one rather than a plain app-debug.apk.
+apk_relative_path=${FRACTAL_ANDROID_APK:-.pixiewood/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk}
 
 engine=${FRACTAL_CONTAINER_ENGINE:-}
 if [ -z "$engine" ]; then

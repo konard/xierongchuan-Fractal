@@ -35,8 +35,8 @@ sdk_root=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}
     exit 127
 }
 
-aapt2=$(find "$sdk_root/build-tools" -maxdepth 2 -name aapt2 -type f | sort | tail -1)
-readelf=$(find "${ANDROID_NDK_HOME:-$sdk_root/ndk}" -maxdepth 5 -name 'llvm-readelf' -type f | sort | tail -1)
+aapt2=$(find "$sdk_root/build-tools" -maxdepth 2 -name aapt2 | sort | tail -1)
+readelf=$(find "${ANDROID_NDK_HOME:-$sdk_root/ndk}" -maxdepth 8 -name 'llvm-readelf' | sort | tail -1)
 [ -x "$aapt2" ] || { echo "aapt2 not found in $sdk_root/build-tools" >&2; exit 127; }
 [ -x "$readelf" ] || { echo "llvm-readelf not found in the NDK" >&2; exit 127; }
 
@@ -55,7 +55,7 @@ pass() {
 badging=$("$aapt2" dump badging "$apk")
 
 min_sdk=$(printf '%s\n' "$badging" \
-    | sed -n "s/^sdkVersion:'\([0-9]*\)'.*/\1/p" | head -1)
+    | sed -n "s/^minSdkVersion:'\([0-9]*\)'.*/\1/p" | head -1)
 if [ "$min_sdk" = "$expected_min_sdk" ]; then
     pass "minSdkVersion is $min_sdk"
 else
