@@ -23,6 +23,9 @@ Run all commands from the repository root:
 # Build the local image. This is the only download/install step.
 build-aux/android/podman.sh image
 
+# Every other command builds it automatically, and rebuilds it when the
+# Containerfile in the checkout differs from the one the image was built from.
+
 # Confirm the pinned builder is available inside the container.
 build-aux/android/podman.sh exec -- pixiewood --version
 

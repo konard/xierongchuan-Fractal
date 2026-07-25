@@ -44,6 +44,29 @@ case "$engine" in
         ;;
 esac
 
+# The image is tagged with the checksum of the recipe it was built from, so a
+# checkout that adds a package to the Containerfile does not silently keep
+# using an image built before it. Without this, `ensure_image` reuses any
+# image that merely has the right tag and the build fails much later with a
+# missing tool (for example `Program 'msgfmt' not found`).
+containerfile_label=org.gnome.Fractal.containerfile-sha256
+
+containerfile_digest() {
+    if command -v sha256sum > /dev/null 2>&1; then
+        sha256sum "$script_dir/Containerfile" | cut -d' ' -f1
+    elif command -v shasum > /dev/null 2>&1; then
+        shasum -a 256 "$script_dir/Containerfile" | cut -d' ' -f1
+    else
+        echo unknown
+    fi
+}
+
+image_digest() {
+    "$engine" image inspect \
+        --format "{{index .Config.Labels \"$containerfile_label\"}}" \
+        "$image" 2> /dev/null || true
+}
+
 usage() {
     cat <<'EOF'
 Usage: build-aux/android/podman.sh <command> [arguments]
@@ -72,6 +95,19 @@ prepare_state() {
 
 ensure_image() {
     if ! "$engine" image inspect "$image" > /dev/null 2>&1; then
+        "$script_dir/podman.sh" image
+        return
+    fi
+    # An explicitly provided image is left alone: it was not necessarily built
+    # from this Containerfile and rebuilding it under that tag would be wrong.
+    if [ -n "${FRACTAL_ANDROID_IMAGE:-}" ]; then
+        return
+    fi
+    expected=$(containerfile_digest)
+    actual=$(image_digest)
+    if [ "$expected" != "$actual" ]; then
+        echo "Container image $image was built from a different" \
+            "Containerfile; rebuilding it." >&2
         "$script_dir/podman.sh" image
     fi
 }
@@ -104,6 +140,7 @@ case "$command" in
     image)
         "$engine" build \
             --file "$script_dir/Containerfile" \
+            --label "$containerfile_label=$(containerfile_digest)" \
             --tag "$image" \
             "$project_dir"
         ;;
