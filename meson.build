@@ -200,8 +200,13 @@ endif
 
 subdir('src')
 
-gnome.post_install(
-    gtk_update_icon_cache: true,
-    glib_compile_schemas: true,
-    update_desktop_database: true,
-)
+# These steps update caches of the desktop system that the application is
+# installed on. An Android package is not installed into a prefix, and the
+# tools would have to run on the device, so they are skipped there.
+if not android
+    gnome.post_install(
+        gtk_update_icon_cache: true,
+        glib_compile_schemas: true,
+        update_desktop_database: true,
+    )
+endif
