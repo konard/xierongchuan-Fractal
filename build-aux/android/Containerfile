@@ -7,6 +7,18 @@
 #   podman build -f build-aux/android/Containerfile \
 #     -t localhost/fractal-android-builder:dev .
 
+# blueprint-compiler validates the Blueprint files against the GObject
+# introspection data of GTK and libadwaita. The Android build of GTK is
+# cross-compiled with introspection disabled, and Debian Bookworm only packages
+# GTK 4.8, which is older than the 4.20.2 that Fractal requires. The typelibs
+# are therefore taken from a distribution that ships a recent enough GTK. They
+# are only metadata: blueprint-compiler reads them, it never loads the
+# libraries they describe.
+FROM fedora:43 AS typelibs
+
+RUN dnf install --assumeyes --setopt=install_weak_deps=False gtk4 libadwaita \
+    && dnf clean all
+
 FROM rust:1.93.0-bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -37,9 +49,12 @@ ENV PIXIEWOOD_HOME=/opt/gtk-android-builder
 # Android-Studio-only SVG converter.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
+        appstream \
         build-essential \
         ca-certificates \
         curl \
+        desktop-file-utils \
+        gettext \
         git \
         gir1.2-appstream-1.0 \
         glslc \
@@ -97,6 +112,10 @@ RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools \
         "platform-tools" \
         "platforms;android-${ANDROID_PLATFORM}"
 
+# `grass` is the SASS compiler that the stylesheet of Fractal is built with.
+RUN cargo install --root /usr/local --locked grass \
+    && rm -rf "${CARGO_HOME:-/usr/local/cargo}/registry"
+
 RUN rustup target add aarch64-linux-android \
     && git clone https://github.com/sp1ritCS/gtk-android-builder.git /tmp/gtk-android-builder \
     && git -C /tmp/gtk-android-builder checkout --detach ${PIXIEWOOD_COMMIT} \
@@ -104,6 +123,20 @@ RUN rustup target add aarch64-linux-android \
     && git -C /tmp/gtk-android-builder rev-parse HEAD \
         > /usr/local/opt/gtk-android-builder/REVISION \
     && rm -rf /tmp/gtk-android-builder
+
+# The whole set is copied, because Gtk-4.0 needs every namespace it depends on
+# to come from the same GTK release. It is kept in a separate directory that
+# only `build-aux/compile-blueprints.sh` puts on the introspection search path,
+# so the typelibs that Pixiewood uses through Perl are left untouched.
+COPY --from=typelibs /usr/lib64/girepository-1.0/ /usr/local/lib/blueprint-girepository/
+
+# `GIRepository` is the exception: PyGObject loads that namespace itself to
+# start the repository, and the Fedora version of it links against
+# `libgirepository-2.0.so.0`, which Debian does not ship. Removing it makes
+# PyGObject fall back to the system typelib, which matches the system library.
+RUN rm -f /usr/local/lib/blueprint-girepository/GIRepository-*.typelib
+
+ENV FRACTAL_BLUEPRINT_TYPELIB_PATH=/usr/local/lib/blueprint-girepository
 
 WORKDIR /workspace
 

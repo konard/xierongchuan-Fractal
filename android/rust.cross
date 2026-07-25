@@ -1,0 +1,13 @@
+# Meson cross file completing the Pixiewood toolchain for Fractal.
+#
+# Fractal declares `rust` as a project language, so Meson needs a Rust compiler
+# for the host machine even though every Rust artefact is produced by Cargo in
+# a `custom_target`. Pixiewood only defines the C toolchain, so the Rust
+# compiler is defined here.
+#
+# It is added to the Pixiewood invocation through `<configure-options>` in
+# `android/pixiewood.xml`, so it is read after the Pixiewood cross files and
+# can use the constants that they define.
+
+[binaries]
+rust = ['rustc', '--target', arch + '-linux-' + platform, '-C', 'linker=' + toolchain / 'bin' / arch + '-linux-' + platform + '31-clang']

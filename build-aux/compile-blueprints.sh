@@ -47,7 +47,17 @@
 # compiled files are equivalent, they just lack syntax highlighting. This
 # matches the `sourceview` feature of the Rust crate.
 
+# `FRACTAL_BLUEPRINT_TYPELIB_PATH` lets a build environment provide the GObject
+# introspection data that blueprint-compiler validates against, without
+# changing the introspection search path of the rest of the build.
+
 set -e
+
+if [ -n "${FRACTAL_BLUEPRINT_TYPELIB_PATH:-}" ]
+then
+    GI_TYPELIB_PATH="$FRACTAL_BLUEPRINT_TYPELIB_PATH${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export GI_TYPELIB_PATH
+fi
 
 compiler="$1"
 shift

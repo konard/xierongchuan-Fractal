@@ -78,9 +78,18 @@ ensure_image() {
 
 run_container() {
     prepare_state
-    # shellcheck disable=SC2086 # userns_args is intentionally word-split.
+    # Linking the Rust code of Fractal needs a few gigabytes per job, so a
+    # machine with little memory has to build with fewer jobs than it has
+    # cores. `CARGO_BUILD_JOBS` is forwarded for that, and left to Cargo's
+    # default when it is unset.
+    cargo_jobs_args=""
+    if [ -n "${CARGO_BUILD_JOBS:-}" ]; then
+        cargo_jobs_args="--env CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS"
+    fi
+    # shellcheck disable=SC2086 # the args are intentionally word-split.
     "$engine" run --rm \
         $userns_args \
+        $cargo_jobs_args \
         --user "$(id -u):$(id -g)" \
         --env HOME=/workspace/.android-container/home \
         --env CARGO_HOME=/workspace/.android-container/cargo \

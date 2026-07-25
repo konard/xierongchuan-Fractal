@@ -31,6 +31,8 @@
 	</dependencies>
 	<build target="fractal">
 		<configure-options>
+			<option>--cross-file</option>
+			<option>android/rust.cross</option>
 			<option>-Dandroid=true</option>
 			<option>-Dprofile=development</option>
 		</configure-options>
