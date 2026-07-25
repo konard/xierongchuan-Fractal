@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pixiewood manifest of Fractal for Android.
+
+     Build it from the repository root with:
+       build-aux/android/podman.sh prepare android/pixiewood.xml
+       build-aux/android/podman.sh generate
+       build-aux/android/podman.sh build
+
+     The metainfo file is taken from the build directory because Pixiewood
+     needs a namespaced copy, which `-Dandroid=true` generates. -->
+<app xmlns="https://sp1rit.arpa/pixiewood/" xmlns:xi="http://www.w3.org/2001/XInclude">
+	<metainfo vercalc="sem121010">
+		<xi:include href="build://aarch64/data/android-metainfo.xml" parse="xml"/>
+	</metainfo>
+	<style>
+		<theme name="adw"/>
+		<icon type="generate">
+			<drawable target="foreground" type="avd" path="src://android/data/ic_launcher_foreground.xml"/>
+			<color target="background">#241f31</color>
+		</icon>
+	</style>
+	<dependencies>
+		<glib>
+			<patch>hack</patch>
+		</glib>
+		<fontconfig/>
+		<gdk-pixbuf/>
+		<gtk/>
+		<libadwaita/>
+		<rsvg/>
+	</dependencies>
+	<build target="fractal">
+		<configure-options>
+			<option>-Dandroid=true</option>
+			<option>-Dprofile=development</option>
+		</configure-options>
+		<architectures>
+			<arch>aarch64</arch>
+		</architectures>
+	</build>
+</app>

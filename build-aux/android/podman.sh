@@ -55,6 +55,7 @@ Commands:
   prepare MANIFEST      Run `pixiewood prepare` for an Android manifest.
   generate              Run `pixiewood generate` after prepare.
   build [--release]     Run `pixiewood build` after generate.
+  app                   Build the Fractal APK end to end (android/pixiewood.xml).
   smoke                 Build the GTK/libadwaita smoke-test APK end to end.
   verify [APK]          Run static checks on a built APK.
   install [APK]         Install the debug APK with the host's adb.
@@ -140,6 +141,19 @@ case "$command" in
             exit 2
         fi
         run_container pixiewood -C /workspace build
+        ;;
+    app)
+        shift
+        if [ "$#" -ne 0 ]; then
+            usage >&2
+            exit 2
+        fi
+        ensure_image
+        run_container pixiewood -C /workspace prepare android/pixiewood.xml
+        run_container pixiewood -C /workspace generate
+        run_container pixiewood -C /workspace build
+        run_container build-aux/android/verify-apk.sh "$apk_relative_path"
+        echo "Fractal APK: $apk_relative_path"
         ;;
     smoke)
         shift

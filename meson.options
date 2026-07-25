@@ -12,6 +12,13 @@ option(
   description: 'The build profile for Fractal. One of "default", "beta", "development" or "hack".'
 )
 option(
+  'android',
+  type: 'boolean',
+  value: false,
+  description: 'Whether to build the Android library and launcher instead of the desktop binary. ' +
+               'It requires the Android toolchain from build-aux/android and is never enabled for a desktop build.'
+)
+option(
   'disable-glycin-sandbox',
   type : 'boolean',
   value : false,

@@ -65,6 +65,22 @@ if appstreamcli.found()
     )
 endif
 
+if android
+    # Pixiewood reads the metainfo file to generate the Android manifest, but
+    # it only looks at elements in the metainfo namespace, which the installed
+    # file does not use. Generate a namespaced copy for it.
+    custom_target(
+        'android-metainfo',
+        input: appdata_file,
+        output: 'android-metainfo.xml',
+        command: [
+            meson.project_source_root() / 'build-aux/android/namespace-metainfo.sh',
+            '@INPUT@',
+            '@OUTPUT@',
+        ],
+    )
+endif
+
 # GSchema
 gschema_conf = configuration_data()
 gschema_conf.set('app-id', application_id)

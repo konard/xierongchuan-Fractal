@@ -49,16 +49,36 @@ resolvable `DT_NEEDED` entries). Any built APK can be re-checked with:
 build-aux/android/podman.sh verify [APK]
 ```
 
-Once the Android adaptation introduces its own Pixiewood manifest, the build
-flow is:
+## Building Fractal
+
+The Pixiewood manifest of the application is `android/pixiewood.xml`. It builds
+the Meson target of the Android launcher, which is only configured when
+`-Dandroid=true` is passed, so a desktop build never sees it:
 
 ```sh
-build-aux/android/podman.sh prepare build-aux/android/pixiewood.xml
+build-aux/android/podman.sh app
+```
+
+That command is the end-to-end equivalent of:
+
+```sh
+build-aux/android/podman.sh prepare android/pixiewood.xml
 build-aux/android/podman.sh generate
 build-aux/android/podman.sh build
+build-aux/android/podman.sh verify
 build-aux/android/podman.sh install
 build-aux/android/podman.sh logcat
 ```
+
+The manifest uses the launcher icon in `android/data/`, and the metainfo copy
+that the Android build generates in `data/android-metainfo.xml`, because
+Pixiewood only reads metainfo elements that are in the metainfo XML namespace.
+
+Fractal's full dependency set is not yet buildable this way: Pixiewood provides
+wraps for GLib, fontconfig, cairo, gdk-pixbuf, GTK, HarfBuzz, libadwaita and
+rsvg, but not for GStreamer, GtkSourceView, glycin, libwebp, libshumate or
+SQLite, which `meson.build` requires. See `docs/android-porting-plan.md` for
+the current state of that work.
 
 `prepare` creates `.pixiewood/` and may create `subprojects/` wrappers; both
 are generated and ignored. `install` and `logcat` intentionally execute host

@@ -46,6 +46,20 @@ dependency('sqlite3', version: '>= 3.24.0')
 # remove some build steps.
 build_env_only = get_option('profile') == 'build-env'
 
+# The Android build produces a library plus a small native launcher instead of
+# the desktop binary. It is never enabled implicitly: a desktop build does not
+# need the Android toolchain and does not compile any C code.
+android = get_option('android')
+
+if android
+    # `android_exe_type` requires Meson 1.9, and the launcher is written in C.
+    assert(
+        meson.version().version_compare('>= 1.9'),
+        'The Android build requires Meson 1.9 or later',
+    )
+    add_languages('c', native: false)
+endif
+
 cargo = find_program('cargo', required: true)
 cargo_version = run_command(cargo, '--version', check: true).stdout().strip()
 message(cargo_version)

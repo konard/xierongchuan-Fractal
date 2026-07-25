@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground layer of the Android launcher icon of Fractal.
+
+     Pixiewood can convert an SVG to an Android vector drawable, but only with
+     a full Android Studio installation, which the build container does not
+     ship. The drawable is therefore checked in, generated from the paths of
+     data/icons/org.gnome.Fractal-symbolic.svg: the 16x16 viewport of the
+     symbolic icon is scaled by 3.75 and centered in the 108x108 viewport of an
+     adaptive icon, which keeps the artwork inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="3.75"
+        android:scaleY="3.75"
+        android:translateX="24"
+        android:translateY="24">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="m 4 12 v 4 h 1 l 4 -4 z m 0 0" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="m 3 1 c -1.660156 0 -3 1.339844 -3 3 v 7 c 0 1.660156 1.339844 3 3 3 h 6.558594 c 0.660156 -0.410156 1.328125 -0.878906 1.992187 -1.429688 c 2.207031 -1.921874 2.878907 -5.460937 0.832031 -7.75 c -1.398437 -1.566406 -3.957031 -2.035156 -5.589843 -0.539062 c -1.082031 1 -1.40625 2.804688 -0.332031 3.929688 c 0.695312 0.730468 1.9375 0.941406 2.695312 0.1875 c 0.472656 -0.464844 0.609375 -1.292969 0.097656 -1.785157 c -0.304687 -0.296875 -0.835937 -0.378906 -1.144531 -0.039062 c -0.175781 0.1875 -0.222656 0.515625 -0.011719 0.699219 c 0.113282 0.097656 0.308594 0.121093 0.410156 -0.003907 c 0.046876 -0.066406 0.0625 -0.171875 -0.011718 -0.222656 c -0.035156 -0.023437 -0.089844 -0.027344 -0.109375 0.007813 c -0.007813 0.015624 -0.007813 0.042968 0.007812 0.050781 c 0.007813 0.003906 0.019531 0.003906 0.019531 0 v -0.007813 c -0.011718 -0.003906 0 -0.003906 0 -0.003906 c 0.007813 -0.003906 0.015626 0.003906 0.015626 0.011719 c 0.007812 0.015625 -0.011719 0.03125 -0.03125 0.039062 c -0.042969 0.007813 -0.070313 -0.035156 -0.082032 -0.070312 c -0.015625 -0.089844 0.070313 -0.15625 0.148438 -0.167969 c 0.160156 -0.015625 0.28125 0.136719 0.292968 0.285156 c 0.019532 0.277344 -0.246093 0.480469 -0.503906 0.488282 c -0.457031 0.023437 -0.769531 -0.414063 -0.78125 -0.835938 c -0.011718 -0.710938 0.667969 -1.203125 1.332032 -1.199219 c 1.070312 0.007813 1.796874 1.035157 1.773437 2.039063 c -0.039063 1.558594 -1.542969 2.605468 -3.015625 2.546875 c -2.210938 -0.09375 -3.6875 -2.234375 -3.570312 -4.332031 c 0.160156 -2.859376 2.773437 -4.816407 5.496093 -4.898438 z m 0 0" />
+    </group>
+</vector>

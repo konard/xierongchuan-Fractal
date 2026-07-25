@@ -98,7 +98,69 @@ else
     message('Building in release mode')
 endif
 
-if not build_env_only
+if android and not build_env_only
+    # Build the Android library with cargo, and link the native launcher
+    # against it. The launcher is what the Android runtime starts; all the
+    # application code lives in the library.
+    cpu_family = host_machine.cpu_family()
+    if cpu_family == 'aarch64'
+        rust_android_triple = 'aarch64-linux-android'
+    elif cpu_family == 'arm'
+        rust_android_triple = 'armv7-linux-androideabi'
+    elif cpu_family == 'x86_64'
+        rust_android_triple = 'x86_64-linux-android'
+    else
+        error('Unsupported Android ABI: ' + cpu_family)
+    endif
+
+    android_lib_name = 'libfractal_android.so'
+    android_cargo_options = [
+        '--manifest-path', meson.project_source_root() / 'android' / 'native' / 'Cargo.toml',
+        '--target', rust_android_triple,
+    ]
+    if profile != 'Devel'
+        android_cargo_options += ['--release']
+    endif
+
+    # The GResource bundles are compiled into the library: an Android package
+    # has no installation prefix to load them from at runtime.
+    android_cargo_env = cargo_env + [
+        'FRACTAL_RESOURCES_FILE=' + resources.full_path(),
+        'FRACTAL_UI_RESOURCES_FILE=' + ui_resources.full_path(),
+    ]
+
+    android_lib = custom_target(
+        'cargo-build-android',
+        build_by_default: true,
+        build_always_stale: true,
+        output: android_lib_name,
+        console: true,
+        install: true,
+        install_dir: get_option('libdir'),
+        depends: [resources, ui_resources],
+        env: android_cargo_env,
+        command: [
+            cargo,
+            'build',
+            android_cargo_options,
+            '&&',
+            'cp',
+            cargo_target_dir / rust_android_triple / rust_target / android_lib_name,
+            '@OUTPUT@',
+        ],
+    )
+
+    executable(
+        meson.project_name(),
+        meson.project_source_root() / 'android' / 'shim' / 'main.c',
+        link_args: ['-L' + meson.current_build_dir(), '-lfractal_android'],
+        link_depends: android_lib,
+        install_rpath: '$ORIGIN',
+        android_exe_type: 'application',
+        install: true,
+        install_dir: bindir,
+    )
+elif not build_env_only
     # Build binary with cargo
     custom_target(
         'cargo-build',
