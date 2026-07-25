@@ -1,7 +1,6 @@
 use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
 use gtk::glib;
-use sourceview::prelude::*;
 
 use crate::{
     components::{CopyableRow, ToastableDialog, UserProfileDialog},
@@ -32,7 +31,7 @@ mod imp {
         #[template_child]
         source_page: TemplateChild<adw::NavigationPage>,
         #[template_child]
-        source_view: TemplateChild<sourceview::View>,
+        source_view: TemplateChild<utils::sourceview::View>,
     }
 
     #[glib::object_subclass]
@@ -59,14 +58,12 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
-            let json_lang = sourceview::LanguageManager::default().language("json");
-
             let buffer = self
                 .source_view
                 .buffer()
-                .downcast::<sourceview::Buffer>()
+                .downcast::<utils::sourceview::Buffer>()
                 .unwrap();
-            buffer.set_language(json_lang.as_ref());
+            utils::sourceview::set_language(&buffer, Some("json"));
             utils::sourceview::setup_style_scheme(&buffer);
         }
     }

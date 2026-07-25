@@ -4,7 +4,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use assert_matches2::assert_matches;
 use gtk::{gio, glib, glib::clone, prelude::*};
-use sourceview::prelude::ListModelExt;
 
 use super::{GroupingListGroup, GroupingListModel};
 use crate::utils::PlaceholderObject;

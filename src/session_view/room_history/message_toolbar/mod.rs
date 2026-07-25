@@ -47,6 +47,7 @@ use crate::{
             FileInfo, audio::load_audio_info, filename_for_mime, image::ImageInfoLoader,
             video::load_video_info,
         },
+        sourceview,
     },
 };
 

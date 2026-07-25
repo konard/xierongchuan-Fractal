@@ -26,6 +26,31 @@ overflow-checks = false
 incremental = false
 codegen-units = 16
 
+# The features gather the parts of Fractal that depend on a library which is
+# not available on every platform. They are all enabled by default: a desktop
+# build never has to opt into them, and disabling one only removes the
+# corresponding capability, it never changes the behavior of the rest of the
+# application.
+#
+# The Android build (`android/native`) disables the ones whose C library has no
+# Android port yet.
+[features]
+default = ["glycin", "gstreamer", "shumate", "sourceview"]
+# Image loading and animations with glycin, instead of GdkPixbuf.
+glycin = ["dep:glycin", "dep:glycin-gtk4"]
+# Audio and video playback, and media info extraction, with GStreamer.
+gstreamer = [
+    "dep:gst",
+    "dep:gst_app",
+    "dep:gst_pbutils",
+    "dep:gst_play",
+    "dep:gst_video",
+]
+# Interactive map of locations with libshumate.
+shumate = ["dep:shumate"]
+# Syntax highlighting in the composer and in code blocks with GtkSourceView.
+sourceview = ["dep:sourceview"]
+
 # Please keep dependencies sorted.
 [dependencies]
 as_variant = "1.3.0"
@@ -62,16 +87,16 @@ zeroize = "1"
 
 # gtk-rs project and dependents. These usually need to be updated together.
 adw = { version = "0.9", features = ["v1_8"], package = "libadwaita" }
-glycin = { version = "0.1", package = "libglycin-rebind" }
-glycin-gtk4 = { version = "0.1", package = "libglycin-gtk4-rebind" }
-gst = { version = "0.25", package = "gstreamer" }
-gst_app = { version = "0.25", package = "gstreamer-app" }
-gst_pbutils = { version = "0.25", package = "gstreamer-pbutils" }
-gst_play = { version = "0.25", package = "gstreamer-play" }
-gst_video = { version = "0.25", package = "gstreamer-video" }
+glycin = { version = "0.1", package = "libglycin-rebind", optional = true }
+glycin-gtk4 = { version = "0.1", package = "libglycin-gtk4-rebind", optional = true }
+gst = { version = "0.25", package = "gstreamer", optional = true }
+gst_app = { version = "0.25", package = "gstreamer-app", optional = true }
+gst_pbutils = { version = "0.25", package = "gstreamer-pbutils", optional = true }
+gst_play = { version = "0.25", package = "gstreamer-play", optional = true }
+gst_video = { version = "0.25", package = "gstreamer-video", optional = true }
 gtk = { version = "0.11", features = ["gnome_49"], package = "gtk4" }
-shumate = { version = "0.8", features = ["v1_1"], package = "libshumate" }
-sourceview = { version = "0.11", package = "sourceview5" }
+shumate = { version = "0.8", features = ["v1_1"], package = "libshumate", optional = true }
+sourceview = { version = "0.11", package = "sourceview5", optional = true }
 
 [dependencies.matrix-sdk]
 version = "0.18"
@@ -119,6 +144,9 @@ features = [
 
 # Android-only dependencies.
 [target.'cfg(target_os = "android")'.dependencies]
+# Android has no system SQLite development files, so the one used by the
+# storage of the Matrix SDK is compiled from source instead.
+libsqlite3-sys = { version = "0.35", features = ["bundled"] }
 tracing-android = "0.2"
 
 # Linux-only dependencies.

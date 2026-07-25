@@ -7,11 +7,15 @@ use gtk::{gio, glib, prelude::*};
 use mime::Mime;
 use ruma::UInt;
 
+#[cfg(feature = "gstreamer")]
 use crate::utils::OneshotNotifier;
 
+#[cfg_attr(not(feature = "gstreamer"), path = "audio_fallback.rs")]
 pub(crate) mod audio;
 pub(crate) mod image;
+#[cfg_attr(not(feature = "gstreamer"), path = "video_fallback.rs")]
 pub(crate) mod video;
+mod waveform;
 
 /// Get a default filename for a mime type.
 ///
@@ -98,6 +102,7 @@ impl FileInfo {
 }
 
 /// Load information for the given media file.
+#[cfg(feature = "gstreamer")]
 async fn load_gstreamer_media_info(file: &gio::File) -> Option<gst_pbutils::DiscovererInfo> {
     let timeout = gst::ClockTime::from_seconds(15);
     let discoverer = gst_pbutils::Discoverer::new(timeout).ok()?;

@@ -27,29 +27,35 @@ dependency('gio-2.0', version: '>= 2.82')  # always same version as glib
 dependency('gtk4', version: '>= 4.20.2')
 dependency('libadwaita-1', version: '>= 1.8.0')
 
+# The Android build produces a library plus a small native launcher instead of
+# the desktop binary. It is never enabled implicitly: a desktop build does not
+# need the Android toolchain and does not compile any C code.
+android = get_option('android')
+
+# These libraries have no Android port yet. The corresponding Cargo features of
+# Fractal are disabled for the Android build, so they are not needed there
+# either.
+#
 # Please keep these dependencies sorted.
-dependency('gstreamer-1.0', version: '>= 1.20')
-dependency('gstreamer-app-1.0', version: '>= 1.20')
-dependency('gstreamer-base-1.0', version: '>= 1.20')
-dependency('gstreamer-pbutils-1.0', version: '>= 1.20')
-dependency('gstreamer-play-1.0', version: '>= 1.20')
-dependency('gstreamer-video-1.0', version: '>= 1.20')
-dependency('gtksourceview-5', version: '>= 5.0.0')
-dependency('glycin-2', version: '>= 2.0.0')
-dependency('glycin-gtk4-2', version: '>= 2.0.0')
-dependency('libwebp', version: '>= 1.0.0')
-dependency('shumate-1.0', version: '>= 1.1.0')
-dependency('sqlite3', version: '>= 3.24.0')
+if not android
+    dependency('gstreamer-1.0', version: '>= 1.20')
+    dependency('gstreamer-app-1.0', version: '>= 1.20')
+    dependency('gstreamer-base-1.0', version: '>= 1.20')
+    dependency('gstreamer-pbutils-1.0', version: '>= 1.20')
+    dependency('gstreamer-play-1.0', version: '>= 1.20')
+    dependency('gstreamer-video-1.0', version: '>= 1.20')
+    dependency('gtksourceview-5', version: '>= 5.0.0')
+    dependency('glycin-2', version: '>= 2.0.0')
+    dependency('glycin-gtk4-2', version: '>= 2.0.0')
+    dependency('libwebp', version: '>= 1.0.0')
+    dependency('shumate-1.0', version: '>= 1.1.0')
+    dependency('sqlite3', version: '>= 3.24.0')
+endif
 
 # When the `build-env` profile is used, we only want to set up the build
 # environment for the sandbox, we will not try to compile the app, so we can
 # remove some build steps.
 build_env_only = get_option('profile') == 'build-env'
-
-# The Android build produces a library plus a small native launcher instead of
-# the desktop binary. It is never enabled implicitly: a desktop build does not
-# need the Android toolchain and does not compile any C code.
-android = get_option('android')
 
 if android
     # `android_exe_type` requires Meson 1.9, and the launcher is written in C.
@@ -128,6 +134,12 @@ if profile == 'Devel'
 
     release_date = run_command('git', 'show', '-s', '--format=%cI', check: true).stdout().strip()
 
+endif
+
+# The pre-commit hook is a developer convenience for the desktop checkout. It
+# is built for the build machine, which the Android cross build does not have a
+# Rust target for, so it is skipped there.
+if profile == 'Devel' and not android
     # Setup pre-commit hook for ensuring coding style is always consistent
     message('Compiling pre-commit binary…')
     run_command(

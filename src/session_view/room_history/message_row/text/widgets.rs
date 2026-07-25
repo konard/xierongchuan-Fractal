@@ -6,14 +6,18 @@ use ruma::html::{
     Children, NodeRef,
     matrix::{MatrixElement, OrderedListData},
 };
-use sourceview::prelude::*;
 use tracing::debug;
 
 use super::{SUPPORTED_BLOCK_ELEMENTS, inline_html::InlineHtmlBuilder};
+// The traits of the prelude of `sourceview` might be the same as the ones of
+// GTK, which are already in scope.
+#[allow(unused_imports)]
+use crate::utils::sourceview::prelude::*;
 use crate::{
     components::{AtRoom, LabelWithWidgets},
     prelude::*,
     session::Room,
+    utils::sourceview,
 };
 
 /// The immutable config fields to build a HTML widget tree.
@@ -416,16 +420,8 @@ fn widget_for_preformatted_text(
         return Some(label.upcast());
     }
 
-    let buffer = sourceview::Buffer::builder()
-        .highlight_matching_brackets(false)
-        .text(text)
-        .build();
-    crate::utils::sourceview::setup_style_scheme(&buffer);
-
-    let language = code
-        .language
-        .and_then(|lang| sourceview::LanguageManager::default().language(lang.as_ref()));
-    buffer.set_language(language.as_ref());
+    let buffer = sourceview::new_code_buffer(&text);
+    sourceview::set_language(&buffer, code.language.as_deref());
 
     let view = sourceview::View::builder()
         .buffer(&buffer)

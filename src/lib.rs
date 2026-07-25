@@ -64,6 +64,7 @@ pub fn run() -> glib::ExitCode {
     glib::set_application_name("Fractal");
 
     gtk::init().expect("Could not start GTK4");
+    #[cfg(feature = "gstreamer")]
     gst::init().expect("Could not initialize gst");
 
     #[cfg(target_os = "linux")]

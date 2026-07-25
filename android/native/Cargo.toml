@@ -17,4 +17,6 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-fractal = { path = "../.." }
+# The features of Fractal that depend on a C library without an Android port
+# are disabled. See the `[features]` section of the manifest of Fractal.
+fractal = { path = "../..", default-features = false }

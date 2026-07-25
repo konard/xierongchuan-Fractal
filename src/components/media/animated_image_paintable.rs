@@ -1,11 +1,12 @@
-use glycin::{Frame, Image};
 use gtk::{gdk, glib, glib::clone, graphene, prelude::*, subclass::prelude::*};
 use tracing::error;
 
 use crate::{
-    prelude::*,
     spawn,
-    utils::{CountedRef, File},
+    utils::{
+        CountedRef, File,
+        media::image::decoder::{Decoder, Frame},
+    },
 };
 
 mod imp {
@@ -16,7 +17,7 @@ mod imp {
     #[derive(Default)]
     pub struct AnimatedImagePaintable {
         /// The image decoder.
-        decoder: OnceCell<Image>,
+        decoder: OnceCell<Decoder>,
         /// The file of the image.
         ///
         /// We need to keep a strong reference to the temporary file or it will
@@ -48,7 +49,7 @@ mod imp {
             self.current_frame
                 .borrow()
                 .as_ref()
-                .map_or_else(|| self.decoder().height(), glycin::Frame::height)
+                .map_or_else(|| self.decoder().height(), Frame::height)
                 .try_into()
                 .unwrap_or(i32::MAX)
         }
@@ -57,7 +58,7 @@ mod imp {
             self.current_frame
                 .borrow()
                 .as_ref()
-                .map_or_else(|| self.decoder().width(), glycin::Frame::width)
+                .map_or_else(|| self.decoder().width(), Frame::width)
                 .try_into()
                 .unwrap_or(i32::MAX)
         }
@@ -94,12 +95,12 @@ mod imp {
 
     impl AnimatedImagePaintable {
         /// The image decoder.
-        fn decoder(&self) -> &Image {
+        fn decoder(&self) -> &Decoder {
             self.decoder.get().expect("decoder should be initialized")
         }
 
         /// Initialize the image.
-        pub(super) fn init(&self, decoder: Image, first_frame: Frame, file: Option<File>) {
+        pub(super) fn init(&self, decoder: Decoder, first_frame: Frame, file: Option<File>) {
             self.decoder
                 .set(decoder)
                 .expect("decoder should be uninitialized");
@@ -170,7 +171,7 @@ mod imp {
                 .current_frame
                 .borrow()
                 .as_ref()
-                .and_then(GlycinFrameExt::delay_duration)
+                .and_then(Frame::delay_duration)
             else {
                 return;
             };
@@ -198,7 +199,7 @@ mod imp {
         }
 
         async fn load_next_frame_inner(&self) {
-            match self.decoder().next_frame_future().await {
+            match self.decoder().next_frame().await {
                 Ok(next_frame) => {
                     self.next_frame.replace(Some(next_frame));
 
@@ -225,7 +226,7 @@ glib::wrapper! {
 impl AnimatedImagePaintable {
     /// Construct an `AnimatedImagePaintable` with the given  decoder, first
     /// frame, and the file containing the image, if any.
-    pub(crate) fn new(decoder: Image, first_frame: Frame, file: Option<File>) -> Self {
+    pub(crate) fn new(decoder: Decoder, first_frame: Frame, file: Option<File>) -> Self {
         let obj = glib::Object::new::<Self>();
 
         obj.imp().init(decoder, first_frame, file);

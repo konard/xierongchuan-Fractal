@@ -13,7 +13,6 @@ use ruma::{
         room::message::{MessageFormat, MessageType, OriginalSyncRoomMessageEvent},
     },
 };
-use sourceview::prelude::*;
 use tracing::{error, warn};
 
 use super::ComposerParser;
@@ -21,8 +20,15 @@ use crate::{
     components::{AvatarImageSafetySetting, Pill, PillSource},
     session::{Event, Member, Room, Timeline},
     spawn, spawn_tokio,
-    utils::matrix::{AT_ROOM, find_at_room, find_html_mentions},
+    utils::{
+        matrix::{AT_ROOM, find_at_room, find_html_mentions},
+        sourceview,
+    },
 };
+// The traits of the prelude of `sourceview` might be the same as the ones of
+// GTK, which are already in scope.
+#[allow(unused_imports)]
+use crate::utils::sourceview::prelude::*;
 
 // The duration in seconds we wait for before saving a change.
 const SAVING_TIMEOUT: u32 = 3;
@@ -85,11 +91,10 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
-            crate::utils::sourceview::setup_style_scheme(&self.buffer);
+            sourceview::setup_style_scheme(&self.buffer);
 
             // Markdown highlighting.
-            let md_lang = sourceview::LanguageManager::default().language("markdown");
-            self.buffer.set_language(md_lang.as_ref());
+            sourceview::set_language(&self.buffer, Some("markdown"));
 
             self.buffer.connect_changed(clone!(
                 #[weak(rename_to = imp)]

@@ -1,6 +1,8 @@
 use crate::application::AppProfile;
 
 pub(crate) const APP_ID: &str = @APP_ID@;
+// Only used when the `glycin` feature is enabled.
+#[allow(dead_code)]
 pub(crate) const DISABLE_GLYCIN_SANDBOX: bool = @DISABLE_GLYCIN_SANDBOX@;
 pub(crate) const GETTEXT_PACKAGE: &str = @GETTEXT_PACKAGE@;
 pub(crate) const LOCALEDIR: &str = @LOCALEDIR@;
