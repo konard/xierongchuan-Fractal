@@ -28,3 +28,7 @@ subprojects/
 
 # Local build logs
 logs/
+ci-logs/
+
+# Local verification build directory
+.cargo-target-check/

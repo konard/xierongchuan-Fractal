@@ -1,0 +1,18 @@
+# Throwaway image used only to run the desktop `cargo check` for Fractal in this
+# environment, where GTK 4.20 / libadwaita 1.8 are not available on the host.
+FROM fedora:43
+
+RUN dnf -y install --setopt=install_weak_deps=False \
+        gcc clang pkgconf-pkg-config git make \
+        gtk4-devel libadwaita-devel gtksourceview5-devel libshumate-devel \
+        glycin-devel glycin-gtk4-devel \
+        gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free-devel \
+        libwebp-devel sqlite-devel openssl-devel gettext-devel \
+        rust cargo \
+        meson ninja-build blueprint-compiler glib2-devel desktop-file-utils \
+        libappstream-glib appstream \
+    && dnf clean all
+# The stylesheets of Fractal are compiled with a Sass implementation, which
+# Fedora does not package.
+RUN cargo install --root /usr/local grass && rm -rf /root/.cargo/registry
+WORKDIR /src

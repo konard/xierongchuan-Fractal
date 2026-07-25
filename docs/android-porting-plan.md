@@ -124,11 +124,17 @@ Toolchain доказан на минимальном GTK4/libadwaita прило�
    `meson.build` Fractal — gstreamer-*, gtksourceview-5, glycin-2,
    glycin-gtk4-2, libwebp, shumate-1.0, sqlite3 — Android-сборки не имеют
    (пункты E1 и E2).
-2. Бинарь Fractal производится cargo через Meson `custom_target`, а Pixiewood
+2. ~~Бинарь Fractal производится cargo через Meson `custom_target`, а Pixiewood
    требует Meson-цель `executable(..., android_exe_type: 'application')` с
-   `main(int, char**, char**)`, вызывающей `g_application_run` (пункт B3).
-3. Rust-зависимости aperture, ashpd и oo7 — только Linux, а Android-ветка
-   secret storage сейчас `unimplemented!()` (пункты B5, C1, D4).
+   `main(int, char**, char**)`, вызывающей `g_application_run` (пункт B3).~~
+   Закрыто: при `-Dandroid=true` Meson собирает `android/native` как
+   `cdylib` и линкует с ним C-launcher `android/shim/main.c` через
+   `executable(..., android_exe_type: 'application')`. Сама сборка этой цели
+   ещё не выполнялась, потому что её блокирует пункт 1.
+3. Rust-зависимости aperture, ashpd и oo7 — только Linux (пункты D4, D5).
+   Android-ветка secret storage больше не `unimplemented!()`: она возвращает
+   состояние «нет сохранённых сессий» и понятную ошибку при попытке сохранить
+   сессию, пока не подключён Android Keystore (пункты B5, C1).
 
 ### Обязательные проверки после изменений
 
@@ -190,27 +196,27 @@ Toolchain доказан на минимальном GTK4/libadwaita прило�
     `readelf -d`/`apkanalyzer`.
   - [ ] Проверить запуск простого GTK demo на Android 12+.
 - [ ] **B3.** Подготовить Rust entry point без изменения desktop entry point.
-  - [ ] Вынести общий bootstrap приложения из `src/main.rs` в библиотечный
+  - [x] Вынести общий bootstrap приложения из `src/main.rs` в библиотечный
     модуль с единственной точкой инициализации.
-  - [ ] Оставить desktop `main()` тонким вызовом этого bootstrap.
-  - [ ] Добавить Android `cdylib` entry point согласно контракту выбранного
+  - [x] Оставить desktop `main()` тонким вызовом этого bootstrap.
+  - [x] Добавить Android `cdylib` entry point согласно контракту выбранного
     GTK runtime/Activity.
   - [ ] Настроить NDK linker, Cargo target и `pkg-config` только в Android
     окружении.
-  - [ ] Проверить, что `cargo check` для desktop не меняет target и linker.
+  - [x] Проверить, что `cargo check` для desktop не меняет target и linker.
 - [ ] **B4.** Сделать Android-safe конфигурацию и ресурсы.
-  - [ ] Перестать требовать абсолютный desktop `PKGDATADIR` для GResources на
+  - [x] Перестать требовать абсолютный desktop `PKGDATADIR` для GResources на
     Android: встроить их в библиотеку либо надёжно распаковывать в app sandbox.
-  - [ ] Зарегистрировать `resources.gresource` и UI resources до создания
+  - [x] Зарегистрировать `resources.gresource` и UI resources до создания
     первого виджета.
-  - [ ] Задать Android-safe data/cache/config директории через единый
+  - [x] Задать Android-safe data/cache/config директории через единый
     platform API, не через жёсткие пути.
   - [ ] Временно отключить только те desktop assets, которые мешают старту;
     не удалять их из desktop-пакета.
 - [ ] **B5.** Устранить гарантированные crash-пути первого запуска.
-  - [ ] Заменить Android fallback `unimplemented!()` у session secret storage
+  - [x] Заменить Android fallback `unimplemented!()` у session secret storage
     на контролируемое Android состояние без сохранённых сессий.
-  - [ ] Если вход ещё не поддержан, показать понятное временное сообщение и
+  - [x] Если вход ещё не поддержан, показать понятное временное сообщение и
     не позволять дойти до panic.
   - [ ] Убедиться, что отсутствие camera/location/notification bridge не
     вызывает crash при создании стартового окна.
