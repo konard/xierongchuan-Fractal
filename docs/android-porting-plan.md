@@ -1,10 +1,10 @@
 # План Android-порта Fractal
 
-Статус: **в работе** (этапы A/B2 закрыты: Android toolchain воспроизводимо
-собирает и упаковывает GTK4/libadwaita APK; B3–B5 закрыты со стороны кода:
-entry point, ресурсы, директории и crash-пути готовы к Android, Meson-цель и
-Pixiewood-манифест Fractal добавлены. Сама сборка APK Fractal блокируется
-отсутствующими Android-wrap'ами зависимостей — см. «Текущие блокеры»)
+Статус: **в работе** (этапы A и B закрыты со стороны сборки: сам Fractal
+воспроизводимо собирается и упаковывается в `app-arm64-v8a-debug.apk`,
+проходящий `verify-apk.sh`. Остаётся проверка на устройстве и этапы C–F.
+Библиотеки без Android-порта отключены Cargo-фичами с fallback-реализациями —
+см. «Текущие блокеры»)
 Целевая платформа: Android 12+ (`minSdk = 31`)
 Основная ABI на первом этапе: `arm64-v8a`
 
@@ -121,25 +121,32 @@ Android `cdylib`. Это предотвращает расхождение ин�
 | 2026-07-25 | B5 | 17cd597 | `cargo check --all-targets` | `AndroidSecret` возвращает пустой список сессий и переведённую ошибку вместо `unimplemented!()`; fallback location больше не паникует; логи идут в logcat через `tracing-android`. Проверка старта на устройстве — пункт B6. |
 | 2026-07-25 | B3 | e01fe0a | `meson setup -Dprofile=development`, `meson setup -Dandroid=true` | Desktop-конфигурация проходит без Android-тулчейна и без C-компилятора (58 целей). `-Dandroid=true` в этом образе останавливается на проверке `meson >= 1.9` (Fedora 43 даёт 1.8.5); Android-образ содержит Meson 1.11.2. Сборка Android-цели не выполнялась: её блокируют отсутствующие wrap'ы (E1/E2). |
 | 2026-07-25 | B3 | e01fe0a | `ninja data/org.gnome.Fractal.Devel.metainfo.xml && build-aux/android/namespace-metainfo.sh … && xmllint --noout` | Копия metainfo с namespace `https://specifications.freedesktop.org/metainfo/1.0` генерируется корректно и валидна как XML; на неё ссылается `android/pixiewood.xml` через `build://aarch64/data/android-metainfo.xml`. |
+| 2026-07-25 | E1/E2 (частично) | 6031c0a | `cargo check --no-default-features`, `cargo check --all-targets` | Библиотеки без Android-порта вынесены в Cargo-фичи, включённые по умолчанию: `gstreamer`, `gtksourceview`, `glycin`, `libwebp`, `shumate`. Для каждой добавлена fallback-реализация с тем же API (GDK вместо glycin, статичные виджеты вместо GStreamer/Shumate, `Gtk.TextView` вместо SourceView). Обе конфигурации собираются без warnings. |
+| 2026-07-25 | B3 | 04f8b99 | `podman.sh build` | Blueprint-файлы компилируются и для Android: `.blp` с `GtkSource` подставляются на GTK-эквиваленты, шаблоны на libshumate и GStreamer исключены. Введена переменная `FRACTAL_BLUEPRINT_TYPELIB_PATH`, чтобы blueprint-compiler валидировал по introspection-данным GTK 4.20 (взяты из Fedora 43 отдельным stage образа); Android-сборка GTK собирается без introspection, а Debian Bookworm даёт только GTK 4.8. |
+| 2026-07-25 | B3 | 1b48d6d | `podman.sh build` | Toolchain дополнен: `android/rust.cross` даёт Meson Rust-компилятор для host machine, Cargo получает NDK linker/`ar` и `PKG_CONFIG_LIBDIR` на `meson-uninstalled` кросс-собранного GTK-стека, образ получил `gettext`, `appstream`, `desktop-file-utils` и `grass`. Всё ограничено Android-сборкой: desktop `PATH`, `PKG_CONFIG_*` и Cargo-конфигурация не менялись. |
+| 2026-07-25 | B3 | 0a32a3b | `podman.sh build` | `android/native` стал workspace member (но не default member), поэтому Android-библиотека резолвит ровно те же версии зависимостей, что и desktop; раньше отдельный lock давал несовместимую пару gtk4/libadwaita. Добавлен конструктор fallback-Location и конвертация language tags metainfo в BCP 47 (`sr@latin` → `sr-Latn`), иначе AAPT отвергает `values-b+sr@latin`. |
+| 2026-07-25 | B2 | 0a32a3b | `podman.sh verify` | Собран APK самого Fractal: `app-arm64-v8a-debug.apk`, 769 MiB (debug, без strip). minSdkVersion 31, targetSdkVersion 36, launcher activity `org.gtk.android.ToplevelActivity`, 32 нативные библиотеки только для arm64-v8a, все DT_NEEDED разрешаются. Запуск на устройстве не проверялся: Android-устройства/эмулятора в этом окружении нет. |
 
 ### Текущие блокеры для APK самого Fractal
 
-Toolchain доказан на минимальном GTK4/libadwaita приложении
-(`experiments/android-gtk-smoke`). Прежде чем через него пройдёт сам Fractal,
-нужно закрыть три конкретных блокера:
+Сборка APK самого Fractal больше не заблокирована: `podman.sh app` проходит
+prepare → generate → build и выдаёт APK, который принимает `verify-apk.sh`.
+Прежние блокеры закрыты так:
 
-1. Pixiewood предоставляет wrap'ы только для glib, fontconfig, cairo,
-   gdk-pixbuf, gtk, harfbuzz, libadwaita и rsvg. Обязательные зависимости
-   `meson.build` Fractal — gstreamer-*, gtksourceview-5, glycin-2,
-   glycin-gtk4-2, libwebp, shumate-1.0, sqlite3 — Android-сборки не имеют
-   (пункты E1 и E2).
+1. ~~Pixiewood предоставляет wrap'ы только для glib, fontconfig, cairo,
+   gdk-pixbuf, gtk, harfbuzz, libadwaita и rsvg.~~ Закрыто: зависимости без
+   Android-порта (gstreamer-*, gtksourceview-5, glycin-2, glycin-gtk4-2,
+   libwebp, shumate-1.0) стали Cargo-фичами, включёнными по умолчанию для
+   desktop и выключенными для Android; каждая имеет fallback-реализацию за
+   тем же API. `sqlite3` даёт `rusqlite` со своей vendored-сборкой. Полноценный
+   Android-порт этих библиотек остаётся пунктами E1 и E2.
 2. ~~Бинарь Fractal производится cargo через Meson `custom_target`, а Pixiewood
    требует Meson-цель `executable(..., android_exe_type: 'application')` с
    `main(int, char**, char**)`, вызывающей `g_application_run` (пункт B3).~~
    Закрыто: при `-Dandroid=true` Meson собирает `android/native` как
    `cdylib` и линкует с ним C-launcher `android/shim/main.c` через
-   `executable(..., android_exe_type: 'application')`. Сама сборка этой цели
-   ещё не выполнялась, потому что её блокирует пункт 1.
+   `executable(..., android_exe_type: 'application')`. Цель собрана и
+   упакована в APK.
 3. Rust-зависимости aperture, ashpd и oo7 — только Linux (пункты D4, D5).
    Android-ветка secret storage больше не `unimplemented!()`: она возвращает
    состояние «нет сохранённых сессий» и понятную ошибку при попытке сохранить
