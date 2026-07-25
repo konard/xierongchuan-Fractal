@@ -25,3 +25,6 @@ hooks/checks-bin
 .pixiewood/
 .buildconfig
 subprojects/
+
+# Local build logs
+logs/

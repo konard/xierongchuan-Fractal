@@ -16,7 +16,8 @@ ARG ANDROID_NDK_VERSION=27.2.12479018
 ARG ANDROID_PLATFORM=35
 ARG ANDROID_BUILD_TOOLS_VERSION=35.0.0
 ARG MESON_VERSION=1.9.0
-ARG BLUEPRINT_COMPILER_VERSION=0.18.0
+ARG BLUEPRINT_COMPILER_VERSION=v0.18.0
+ARG BLUEPRINT_COMPILER_COMMIT=e1522d2520e4faca731b612e8e4fa9364e6cbc56
 # Pinned after `git ls-remote` on 2026-07-25. Do not replace with a branch.
 ARG PIXIEWOOD_COMMIT=00b1862b6434a8778557dc3d3074f43f5fdead1b
 
@@ -53,6 +54,7 @@ RUN apt-get update \
         ninja-build \
         openjdk-17-jdk-headless \
         pkg-config \
+        python3-gi \
         python3-pip \
         sassc \
         unzip \
@@ -62,8 +64,19 @@ RUN apt-get update \
 # Meson 1.9 is required for `android_exe_type`; Debian Bookworm's package is
 # older. Keep this isolated from the host by installing it into the image.
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
-        meson==${MESON_VERSION} \
-        blueprint-compiler==${BLUEPRINT_COMPILER_VERSION}
+        meson==${MESON_VERSION}
+
+# blueprint-compiler is installed from its own Meson build instead of PyPI:
+# the PyPI packages of the versions used by GNOME 49 are unavailable and the
+# newer sdists pull pycairo/PyGObject build dependencies that this image does
+# not need.
+RUN git clone https://gitlab.gnome.org/GNOME/blueprint-compiler.git \
+        /tmp/blueprint-compiler \
+    && git -C /tmp/blueprint-compiler checkout --detach ${BLUEPRINT_COMPILER_COMMIT} \
+    && meson setup /tmp/blueprint-compiler/_build /tmp/blueprint-compiler \
+        --prefix=/usr/local \
+    && meson install -C /tmp/blueprint-compiler/_build \
+    && rm -rf /tmp/blueprint-compiler
 
 RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools \
     && curl --fail --location --silent --show-error \
@@ -83,8 +96,9 @@ RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools \
 RUN rustup target add aarch64-linux-android \
     && git clone https://github.com/sp1ritCS/gtk-android-builder.git /tmp/gtk-android-builder \
     && git -C /tmp/gtk-android-builder checkout --detach ${PIXIEWOOD_COMMIT} \
-    && git -C /tmp/gtk-android-builder rev-parse HEAD > /tmp/gtk-android-builder/REVISION \
     && make -C /tmp/gtk-android-builder prefix=/usr/local install \
+    && git -C /tmp/gtk-android-builder rev-parse HEAD \
+        > /usr/local/opt/gtk-android-builder/REVISION \
     && rm -rf /tmp/gtk-android-builder
 
 WORKDIR /workspace

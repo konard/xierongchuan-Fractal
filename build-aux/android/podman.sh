@@ -1,13 +1,45 @@
 #!/bin/sh
-# Run the Android toolchain entirely in Podman. The only Android command that
-# runs on the host is `adb` for installing/debugging an already built APK.
+# Run the Android toolchain entirely in a container. The only Android command
+# that runs on the host is `adb` for installing/debugging an already built APK.
+#
+# Podman is the supported engine; Docker is accepted as a fallback so the
+# toolchain can also be used on hosts that only have Docker available. Set
+# FRACTAL_CONTAINER_ENGINE to force one of them.
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 image=${FRACTAL_ANDROID_IMAGE:-localhost/fractal-android-builder:dev}
 state_dir="$project_dir/.android-container"
-volume_suffix=${FRACTAL_PODMAN_VOLUME_SUFFIX:-:Z}
+
+engine=${FRACTAL_CONTAINER_ENGINE:-}
+if [ -z "$engine" ]; then
+    if command -v podman > /dev/null 2>&1; then
+        engine=podman
+    elif command -v docker > /dev/null 2>&1; then
+        engine=docker
+    else
+        echo "Neither podman nor docker was found on the host." >&2
+        exit 127
+    fi
+fi
+command -v "$engine" > /dev/null 2>&1 || {
+    echo "Container engine not found: $engine" >&2
+    exit 127
+}
+
+# Only Podman relabels volumes for SELinux, and only Podman maps the host user
+# into the container namespace with --userns=keep-id.
+case "$engine" in
+    *podman*)
+        volume_suffix=${FRACTAL_PODMAN_VOLUME_SUFFIX:-:Z}
+        userns_args="--userns=keep-id"
+        ;;
+    *)
+        volume_suffix=${FRACTAL_PODMAN_VOLUME_SUFFIX:-}
+        userns_args=""
+        ;;
+esac
 
 usage() {
     cat <<'EOF'
@@ -33,15 +65,16 @@ prepare_state() {
 }
 
 ensure_image() {
-    if ! podman image exists "$image"; then
+    if ! "$engine" image inspect "$image" > /dev/null 2>&1; then
         "$script_dir/podman.sh" image
     fi
 }
 
 run_container() {
     prepare_state
-    podman run --rm \
-        --userns=keep-id \
+    # shellcheck disable=SC2086 # userns_args is intentionally word-split.
+    "$engine" run --rm \
+        $userns_args \
         --user "$(id -u):$(id -g)" \
         --env HOME=/workspace/.android-container/home \
         --env CARGO_HOME=/workspace/.android-container/cargo \
@@ -54,7 +87,7 @@ run_container() {
 command=${1:-}
 case "$command" in
     image)
-        podman build \
+        "$engine" build \
             --file "$script_dir/Containerfile" \
             --tag "$image" \
             "$project_dir"
