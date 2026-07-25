@@ -1,6 +1,7 @@
 # План Android-порта Fractal
 
-Статус: **не начат**
+Статус: **в работе** (этап A/B2: Android toolchain воспроизводимо собирает и
+упаковывает GTK4/libadwaita APK)
 Целевая платформа: Android 12+ (`minSdk = 31`)
 Основная ABI на первом этапе: `arm64-v8a`
 
@@ -105,6 +106,29 @@ Android `cdylib`. Это предотвращает расхождение ин�
 | --- | --- | --- | --- | --- |
 | — | — | — | — | — |
 | 2026-07-25 | A2.1 | working tree | `git diff --check` | Added the isolated Podman Android toolchain definition and host wrapper; image build is still pending. |
+| 2026-07-25 | A1 | 3e5aeaa | `grep -n 'gtk4\|libadwaita-1\|meson_version' meson.build`, `grep rust-version Cargo.toml` | Зафиксировано: Rust 1.93, Meson >= 1.4 (desktop) / 1.11.2 (Android image), GTK 4.20.2, libadwaita 1.8.0. |
+| 2026-07-25 | A1 | 3e5aeaa | `pkg-config --exists gtk4 libadwaita-1 gstreamer-1.0` | Не выполнено: на host отсутствуют dev-пакеты gtk4/libadwaita/gstreamer, поэтому desktop `meson setup` и `cargo check` здесь недоступны. Записано как недостающая зависимость по правилу A1. |
+| 2026-07-25 | A2 | 3e5aeaa, 76d4762 | `build-aux/android/podman.sh image`, `podman.sh exec -- pixiewood --version` | Образ собирается с нуля (EXIT=0). Починено: blueprint-compiler ставится из pinned upstream-коммита (на PyPI версии нет), Meson поднят до 1.11.2 (требование subproject fontconfig), добавлен python3-gi, SDK/build-tools подняты до 36 (Pixiewood генерирует compileSdk/targetSdk 36 при read-only SDK). |
+| 2026-07-25 | A2 | 74f5eec | `cat build-aux/android/pixiewood.lock` | Версии toolchain и ревизии GTK-стека зафиксированы в lock-файле; `podman.sh` работает и на Docker (fallback), host получает только `adb`. |
+| 2026-07-25 | A3 | 76d4762 | `podman.sh exec -- pixiewood -C experiments/android-gtk-smoke prepare/generate/build` | Ревизия Pixiewood 00b1862 проверена на минимальном GTK4/libadwaita demo: полный проход prepare → generate → build, EXIT=0. Источники и ревизии — в `build-aux/android/pixiewood.lock`. |
+| 2026-07-25 | B2 | 76d4762 | `build-aux/android/podman.sh verify …/app-arm64-v8a-debug.apk` | Собран `app-arm64-v8a-debug.apk` (124 MiB): minSdkVersion 31, targetSdkVersion 36, launcher activity `org.gtk.android.ToplevelActivity`, 32 нативных библиотеки только для arm64-v8a, libgtk-4/libadwaita-1/libgio/libglib/libpango/libcairo/libgdk_pixbuf упакованы, все DT_NEEDED разрешаются. Запуск на устройстве не проверялся: Android-устройства/эмулятора в этом окружении нет. |
+
+### Текущие блокеры для APK самого Fractal
+
+Toolchain доказан на минимальном GTK4/libadwaita приложении
+(`experiments/android-gtk-smoke`). Прежде чем через него пройдёт сам Fractal,
+нужно закрыть три конкретных блокера:
+
+1. Pixiewood предоставляет wrap'ы только для glib, fontconfig, cairo,
+   gdk-pixbuf, gtk, harfbuzz, libadwaita и rsvg. Обязательные зависимости
+   `meson.build` Fractal — gstreamer-*, gtksourceview-5, glycin-2,
+   glycin-gtk4-2, libwebp, shumate-1.0, sqlite3 — Android-сборки не имеют
+   (пункты E1 и E2).
+2. Бинарь Fractal производится cargo через Meson `custom_target`, а Pixiewood
+   требует Meson-цель `executable(..., android_exe_type: 'application')` с
+   `main(int, char**, char**)`, вызывающей `g_application_run` (пункт B3).
+3. Rust-зависимости aperture, ashpd и oo7 — только Linux, а Android-ветка
+   secret storage сейчас `unimplemented!()` (пункты B5, C1, D4).
 
 ### Обязательные проверки после изменений
 
@@ -122,9 +146,9 @@ Android `cdylib`. Это предотвращает расхождение ин�
 
 - [ ] **A1.** Зафиксировать исходное состояние рабочей ветки и не включать в
   Android-коммиты чужие изменения.
-  - [ ] Записать текущие версии Rust, Meson, GTK и libadwaita.
+  - [x] Записать текущие версии Rust, Meson, GTK и libadwaita.
   - [ ] Выполнить `cargo check` и записать результат.
-  - [ ] Выполнить существующую минимальную desktop Meson-проверку, если все
+  - [x] Выполнить существующую минимальную desktop Meson-проверку, если все
     системные зависимости доступны; иначе записать конкретную недостающую
     зависимость.
 - [ ] **A2.** Создать отдельный Android CI environment.
@@ -132,14 +156,16 @@ Android `cdylib`. Это предотвращает расхождение ин�
     `podman.sh`: SDK/NDK/JDK/Rust/Meson/Pixiewood устанавливаются только в
     image, а host `adb` используется только для install/logcat.
   - [ ] Выбрать JDK, Android SDK/Build Tools, NDK, Gradle и emulator image.
-  - [ ] Собрать образ через `build-aux/android/podman.sh image` и проверить
+    JDK 17, SDK/platform 36, build-tools 36.0.0, NDK 27.2.12479018 и Gradle
+    9.3.1 зафиксированы; emulator image ещё не выбран.
+  - [x] Собрать образ через `build-aux/android/podman.sh image` и проверить
     `pixiewood --version` внутри него на чистом host.
-  - [ ] Зафиксировать версии в контейнере либо reproducible setup-скрипте.
-  - [ ] Убедиться, что SDK/NDK не устанавливаются и не запрашиваются при
+  - [x] Зафиксировать версии в контейнере либо reproducible setup-скрипте.
+  - [x] Убедиться, что SDK/NDK не устанавливаются и не запрашиваются при
     desktop-сборке.
 - [ ] **A3.** Зафиксировать runtime builder.
-  - [ ] Проверить конкретную ревизию Pixiewood на минимальном GTK demo.
-  - [ ] Документировать source URL, revision, checksum и применённые patches.
+  - [x] Проверить конкретную ревизию Pixiewood на минимальном GTK demo.
+  - [x] Документировать source URL, revision, checksum и применённые patches.
   - [ ] Проверить, что runtime использует GDK Android backend и `minSdk=31`.
   - [ ] Если проверка не пройдена, создать issue и перейти на зафиксированную
     схему Android CI GTK demo, сохранив остальные архитектурные решения.
@@ -158,9 +184,9 @@ Android `cdylib`. Это предотвращает расхождение ин�
   - [ ] Выполнить `:app:assembleDebug` до интеграции Fractal.
 - [ ] **B2.** Собрать и упаковать минимальный GTK/libadwaita runtime для
   `arm64-v8a`.
-  - [ ] Собрать GLib/GIO, Cairo, Pango, GdkPixbuf и GTK с Android backend.
-  - [ ] Собрать libadwaita той же совместимой версии.
-  - [ ] Упаковать все runtime `.so` в APK и проверить их через
+  - [x] Собрать GLib/GIO, Cairo, Pango, GdkPixbuf и GTK с Android backend.
+  - [x] Собрать libadwaita той же совместимой версии.
+  - [x] Упаковать все runtime `.so` в APK и проверить их через
     `readelf -d`/`apkanalyzer`.
   - [ ] Проверить запуск простого GTK demo на Android 12+.
 - [ ] **B3.** Подготовить Rust entry point без изменения desktop entry point.

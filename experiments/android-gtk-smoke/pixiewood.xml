@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pixiewood manifest of the Android toolchain smoke test.
+     Build it from the repository root with:
+       build-aux/android/podman.sh smoke -->
+<app xmlns="https://sp1rit.arpa/pixiewood/" xmlns:xi="http://www.w3.org/2001/XInclude">
+	<metainfo vercalc="sem121010">
+		<xi:include href="src://data/org.gnome.Fractal.AndroidSmoke.metainfo.xml" parse="xml"/>
+	</metainfo>
+	<style>
+		<theme name="adw"/>
+		<icon type="generate">
+			<drawable target="foreground" type="avd" path="src://data/ic_launcher_foreground.xml"/>
+			<color target="background">#241f31</color>
+		</icon>
+	</style>
+	<dependencies>
+		<glib>
+			<patch>hack</patch>
+		</glib>
+		<fontconfig/>
+		<gtk/>
+		<libadwaita/>
+	</dependencies>
+	<build target="fractal-android-smoke">
+		<architectures>
+			<arch>aarch64</arch>
+		</architectures>
+	</build>
+</app>
