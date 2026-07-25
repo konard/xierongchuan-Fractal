@@ -1,8 +1,9 @@
 # The Android library of Fractal.
 #
-# It is intentionally a separate crate, outside of the workspace of the desktop
-# build: `cargo check`, `cargo build` and `cargo test` at the root of the
-# repository never look at it, and never build a `cdylib`.
+# It is a separate crate, and not a default member of the workspace, so that
+# `cargo check`, `cargo build` and `cargo test` at the root of the repository
+# never build a `cdylib`. Being a workspace member keeps its dependency
+# versions identical to the ones of the desktop build.
 [package]
 name = "fractal-android"
 version = "14.1.0"
@@ -10,8 +11,6 @@ license = "GPL-3.0-or-later"
 edition = "2024"
 rust-version = "1.93"
 publish = false
-
-[workspace]
 
 [lib]
 crate-type = ["cdylib"]

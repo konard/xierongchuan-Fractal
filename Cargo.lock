@@ -1231,6 +1231,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fractal-android"
+version = "14.1.0"
+dependencies = [
+ "fractal",
+]
+
+[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

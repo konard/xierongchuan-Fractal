@@ -81,6 +81,9 @@ impl SystemSettings {
     }
 
     /// Set the clock format setting.
+    ///
+    /// Only the platform backends that can watch the setting call this.
+    #[allow(dead_code)]
     fn set_clock_format(&self, clock_format: ClockFormat) {
         if self.clock_format() == clock_format {
             return;

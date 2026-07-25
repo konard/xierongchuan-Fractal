@@ -7,6 +7,15 @@ edition = "2024"
 rust-version = "1.93"
 publish = false
 
+# The Android library is a workspace member so that it shares this `Cargo.lock`
+# and always resolves to the exact same dependency versions as the desktop
+# build. It is not a default member: `cargo build`, `cargo check` and
+# `cargo test` at the root of the repository never build the `cdylib`, which
+# needs the Android toolchain.
+[workspace]
+members = ["android/native"]
+default-members = ["."]
+
 [package.metadata.cargo-machete]
 ignored = [
     # Used by the SecretFile API.

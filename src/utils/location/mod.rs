@@ -39,6 +39,13 @@ mod unimplemented {
     #[derive(Debug, Default)]
     pub(crate) struct UnimplementedLocation;
 
+    impl UnimplementedLocation {
+        /// Create a location API.
+        pub(crate) fn new() -> Self {
+            Self
+        }
+    }
+
     impl LocationExt for UnimplementedLocation {
         /// Whether the location API is available.
         fn is_available(&self) -> bool {
@@ -60,6 +67,10 @@ mod unimplemented {
 }
 
 /// High-level errors that can occur while fetching the location.
+///
+/// Which variants can occur depends on the backend, the fallback one only ever
+/// returns [`LocationError::Other`].
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum LocationError {
     /// The user cancelled the request to get the location.
