@@ -1,7 +1,10 @@
 # План Android-порта Fractal
 
-Статус: **в работе** (этап A/B2: Android toolchain воспроизводимо собирает и
-упаковывает GTK4/libadwaita APK)
+Статус: **в работе** (этапы A/B2 закрыты: Android toolchain воспроизводимо
+собирает и упаковывает GTK4/libadwaita APK; B3–B5 закрыты со стороны кода:
+entry point, ресурсы, директории и crash-пути готовы к Android, Meson-цель и
+Pixiewood-манифест Fractal добавлены. Сама сборка APK Fractal блокируется
+отсутствующими Android-wrap'ами зависимостей — см. «Текущие блокеры»)
 Целевая платформа: Android 12+ (`minSdk = 31`)
 Основная ABI на первом этапе: `arm64-v8a`
 
@@ -112,6 +115,12 @@ Android `cdylib`. Это предотвращает расхождение ин�
 | 2026-07-25 | A2 | 74f5eec | `cat build-aux/android/pixiewood.lock` | Версии toolchain и ревизии GTK-стека зафиксированы в lock-файле; `podman.sh` работает и на Docker (fallback), host получает только `adb`. |
 | 2026-07-25 | A3 | 76d4762 | `podman.sh exec -- pixiewood -C experiments/android-gtk-smoke prepare/generate/build` | Ревизия Pixiewood 00b1862 проверена на минимальном GTK4/libadwaita demo: полный проход prepare → generate → build, EXIT=0. Источники и ревизии — в `build-aux/android/pixiewood.lock`. |
 | 2026-07-25 | B2 | 76d4762 | `build-aux/android/podman.sh verify …/app-arm64-v8a-debug.apk` | Собран `app-arm64-v8a-debug.apk` (124 MiB): minSdkVersion 31, targetSdkVersion 36, launcher activity `org.gtk.android.ToplevelActivity`, 32 нативных библиотеки только для arm64-v8a, libgtk-4/libadwaita-1/libgio/libglib/libpango/libcairo/libgdk_pixbuf упакованы, все DT_NEEDED разрешаются. Запуск на устройстве не проверялся: Android-устройства/эмулятора в этом окружении нет. |
+| 2026-07-25 | A1 | 4a46d7b | `docker build -f experiments/desktop-check/Containerfile …`, `cargo check --all-targets` | Выполнено в контейнере Fedora 43 (`experiments/desktop-check/`), потому что на host нет GTK 4.20/libadwaita 1.8: `Finished dev profile`, EXIT=0, без warnings. Тот же образ выполняет `meson setup -Dprofile=development`, EXIT=0. |
+| 2026-07-25 | B3 | 3bcac0c | `cargo check --all-targets`, `rustfmt --edition 2024 --check` | Bootstrap вынесен в `fractal::run()` (`src/lib.rs`), desktop `main()` — тонкий вызов, `src/platform/{mod,desktop,android}.rs` разделяет платформы, Android `cdylib` — `android/native` + C-launcher `android/shim/main.c`. Desktop target и linker не менялись. NDK linker/`pkg-config` настраивает Pixiewood, отдельно не проверено. |
+| 2026-07-25 | B4 | 3bcac0c | `cargo check --all-targets` | GResource-бандлы на Android встраиваются в библиотеку (`include_bytes!` по путям из Meson) и регистрируются до создания первого виджета; data/cache-директории берутся из `platform::{data_dir,cache_dir}` вместо `PKGDATADIR`/жёстких путей. |
+| 2026-07-25 | B5 | 17cd597 | `cargo check --all-targets` | `AndroidSecret` возвращает пустой список сессий и переведённую ошибку вместо `unimplemented!()`; fallback location больше не паникует; логи идут в logcat через `tracing-android`. Проверка старта на устройстве — пункт B6. |
+| 2026-07-25 | B3 | e01fe0a | `meson setup -Dprofile=development`, `meson setup -Dandroid=true` | Desktop-конфигурация проходит без Android-тулчейна и без C-компилятора (58 целей). `-Dandroid=true` в этом образе останавливается на проверке `meson >= 1.9` (Fedora 43 даёт 1.8.5); Android-образ содержит Meson 1.11.2. Сборка Android-цели не выполнялась: её блокируют отсутствующие wrap'ы (E1/E2). |
+| 2026-07-25 | B3 | e01fe0a | `ninja data/org.gnome.Fractal.Devel.metainfo.xml && build-aux/android/namespace-metainfo.sh … && xmllint --noout` | Копия metainfo с namespace `https://specifications.freedesktop.org/metainfo/1.0` генерируется корректно и валидна как XML; на неё ссылается `android/pixiewood.xml` через `build://aarch64/data/android-metainfo.xml`. |
 
 ### Текущие блокеры для APK самого Fractal
 
@@ -153,7 +162,7 @@ Toolchain доказан на минимальном GTK4/libadwaita прило�
 - [ ] **A1.** Зафиксировать исходное состояние рабочей ветки и не включать в
   Android-коммиты чужие изменения.
   - [x] Записать текущие версии Rust, Meson, GTK и libadwaita.
-  - [ ] Выполнить `cargo check` и записать результат.
+  - [x] Выполнить `cargo check` и записать результат.
   - [x] Выполнить существующую минимальную desktop Meson-проверку, если все
     системные зависимости доступны; иначе записать конкретную недостающую
     зависимость.
