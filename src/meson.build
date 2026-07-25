@@ -10,10 +10,22 @@ if not build_env_only
         'shortcuts-dialog.blp',  # Must use the root prefix for auto-detection, it must not be under `/ui`.
     ]
 
+    # These files use widgets from libraries that are not available on Android.
+    # The widgets that they describe are replaced by fallback widgets that are
+    # constructed in Rust, so their template is not needed there.
+    blp_android_exceptions = [
+        'components/media/location_viewer.blp',  # libshumate
+        'components/media/video_player.blp',  # GStreamer
+    ]
+
     foreach file : fs.read('ui-blueprint-resources.in').splitlines()
         file = file.strip()
 
         if file.startswith('#') or file == ''
+            continue
+        endif
+
+        if android and blp_android_exceptions.contains(file)
             continue
         endif
 
@@ -40,6 +52,11 @@ if not build_env_only
             '@CURRENT_SOURCE_DIR@',
             '@INPUT@',
         ],
+        env: {
+            # GtkSourceView is not available on Android, its widgets are
+            # replaced by their GTK equivalent.
+            'FRACTAL_BLUEPRINT_NO_SOURCEVIEW': android ? '1' : '0',
+        },
     )
 
     # Populate the GResource file for the compiled Blueprint files dynamically.
@@ -122,9 +139,26 @@ if android and not build_env_only
         android_cargo_options += ['--release']
     endif
 
-    # The GResource bundles are compiled into the library: an Android package
-    # has no installation prefix to load them from at runtime.
+    # Cargo does not read the Meson cross file, so the NDK toolchain that Meson
+    # found is forwarded to it, as well as the `pkg-config` files that Meson
+    # generated for the cross-compiled GTK stack. This is scoped to this target:
+    # the desktop build never sees these variables.
+    android_cc = meson.get_compiler('c').cmd_array()[0]
+    android_ndk_bindir = fs.parent(android_cc)
+    rust_android_env_triple = rust_android_triple.underscorify().to_upper()
+
     android_cargo_env = cargo_env + [
+        'CARGO_TARGET_' + rust_android_env_triple + '_LINKER=' + android_cc,
+        'CC_' + rust_android_triple.underscorify() + '=' + android_cc,
+        'AR_' + rust_android_triple.underscorify() + '=' + android_ndk_bindir / 'llvm-ar',
+        # The GTK stack is built by Meson as subprojects, so it is only
+        # available through the uninstalled `pkg-config` files of the build
+        # directory. `PKG_CONFIG_LIBDIR` replaces the default search path, so
+        # the `.pc` files of the host are never picked up.
+        'PKG_CONFIG_ALLOW_CROSS=1',
+        'PKG_CONFIG_LIBDIR=' + meson.project_build_root() / 'meson-uninstalled',
+        # The GResource bundles are compiled into the library: an Android
+        # package has no installation prefix to load them from at runtime.
         'FRACTAL_RESOURCES_FILE=' + resources.full_path(),
         'FRACTAL_UI_RESOURCES_FILE=' + ui_resources.full_path(),
     ]

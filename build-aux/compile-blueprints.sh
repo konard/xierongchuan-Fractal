@@ -40,6 +40,13 @@
 # path of `INPUT_FILE` relative to the `BASE_INPUT_DIR` with the slashes
 # replaced by `-`, and the extension changed.
 
+# When `FRACTAL_BLUEPRINT_NO_SOURCEVIEW` is set to `1`, the `GtkSource` widgets
+# are replaced by their `Gtk` equivalent before compiling, because
+# GtkSourceView is not available on every platform. Only the properties and the
+# signals that exist on `GtkTextView` are used in our blueprint files, so the
+# compiled files are equivalent, they just lack syntax highlighting. This
+# matches the `sourceview` feature of the Rust crate.
+
 set -e
 
 compiler="$1"
@@ -63,6 +70,16 @@ do
 
     # For debugging
     # echo "Compiling $input_file to $output_file"
+
+    if [ "$FRACTAL_BLUEPRINT_NO_SOURCEVIEW" = "1" ] && grep -q "GtkSource" "$input_file"
+    then
+        substituted_file="$output_file.blp"
+        sed -e '/^using GtkSource 5;$/d' \
+            -e 's/GtkSource\.View/Gtk.TextView/g' \
+            -e 's/GtkSource\.Buffer/Gtk.TextBuffer/g' \
+            "$input_file" > "$substituted_file"
+        input_file="$substituted_file"
+    fi
 
     "$compiler" compile --output "$output_file" "$input_file"
 done
