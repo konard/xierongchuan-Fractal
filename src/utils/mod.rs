@@ -46,7 +46,7 @@ pub(crate) use self::{
     single_item_list_model::SingleItemListModel,
     template_callbacks::TemplateCallbacks,
 };
-use crate::{PROFILE, RUNTIME};
+use crate::{PROFILE, RUNTIME, platform};
 
 /// The type of data.
 #[derive(Debug, Clone, Copy)]
@@ -62,8 +62,8 @@ impl DataType {
     /// type.
     pub(crate) fn dir_path(self) -> PathBuf {
         let mut path = match self {
-            DataType::Persistent => glib::user_data_dir(),
-            DataType::Cache => glib::user_cache_dir(),
+            DataType::Persistent => platform::data_dir(),
+            DataType::Cache => platform::cache_dir(),
         };
         path.push(PROFILE.dir_name().as_ref());
 

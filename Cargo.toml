@@ -117,6 +117,10 @@ features = [
     "compat-lax-room-topic-deser",
 ]
 
+# Android-only dependencies.
+[target.'cfg(target_os = "android")'.dependencies]
+tracing-android = "0.2"
+
 # Linux-only dependencies.
 [target.'cfg(target_os = "linux")'.dependencies]
 aperture = "0.12"

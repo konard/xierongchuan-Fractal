@@ -29,11 +29,14 @@ pub(crate) trait LocationExt {
 }
 
 /// The fallback location API, used on platforms where it is unimplemented.
+///
+/// It must not panic: it always advertises itself as unavailable, and returns
+/// an error if it is used anyway.
 #[cfg(not(target_os = "linux"))]
 mod unimplemented {
     use super::*;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     pub(crate) struct UnimplementedLocation;
 
     impl LocationExt for UnimplementedLocation {
@@ -44,12 +47,14 @@ mod unimplemented {
 
         /// Initialize the location API.
         async fn init(&self) -> Result<(), LocationError> {
-            unimplemented!()
+            tracing::error!("The location API is not supported on this platform");
+            Err(LocationError::Other)
         }
 
         /// Listen to a stream of location updates.
         async fn updates_stream(&self) -> Result<impl Stream<Item = GeoUri> + '_, LocationError> {
-            unimplemented!()
+            tracing::error!("The location API is not supported on this platform");
+            Err::<futures_util::stream::Empty<GeoUri>, _>(LocationError::Other)
         }
     }
 }

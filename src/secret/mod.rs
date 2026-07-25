@@ -15,6 +15,8 @@ use tracing::{debug, error};
 use url::Url;
 use zeroize::Zeroizing;
 
+#[cfg(target_os = "android")]
+mod android;
 mod file;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -35,6 +37,9 @@ cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
         /// The secret API.
         pub(crate) type Secret = linux::LinuxSecret;
+    } else if #[cfg(target_os = "android")] {
+        /// The secret API.
+        pub(crate) type Secret = android::AndroidSecret;
     } else {
         /// The secret API.
         pub(crate) type Secret = unimplemented::UnimplementedSecret;
@@ -55,7 +60,10 @@ pub(crate) trait SecretExt {
 }
 
 /// The fallback `Secret` API, to use on platforms where it is unimplemented.
-#[cfg(not(target_os = "linux"))]
+///
+/// It must not panic: an unsupported platform behaves like a system without
+/// any stored session.
+#[cfg(not(any(target_os = "android", target_os = "linux")))]
 mod unimplemented {
     use super::*;
 
@@ -64,15 +72,18 @@ mod unimplemented {
 
     impl SecretExt for UnimplementedSecret {
         async fn restore_sessions() -> Result<Vec<StoredSession>, SecretError> {
-            unimplemented!()
+            Ok(Vec::new())
         }
 
-        async fn store_session(session: StoredSession) -> Result<(), SecretError> {
-            unimplemented!()
+        async fn store_session(_session: StoredSession) -> Result<(), SecretError> {
+            error!("The secret API is not supported on this platform");
+            Err(SecretError::Service(
+                "The secret API is not supported on this platform".to_owned(),
+            ))
         }
 
-        async fn delete_session(session: &StoredSession) {
-            unimplemented!()
+        async fn delete_session(_session: &StoredSession) {
+            error!("The secret API is not supported on this platform");
         }
     }
 }
