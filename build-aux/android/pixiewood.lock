@@ -1,0 +1,53 @@
+# Pinned revisions of the Android toolchain and of the GTK runtime stack that
+# Pixiewood resolves for it.
+#
+# The toolchain entries are the ARG values of build-aux/android/Containerfile
+# and are authoritative: change them there and mirror them here.
+#
+# The runtime entries are the revisions that Pixiewood's wrap files resolved to
+# when the toolchain smoke test (experiments/android-gtk-smoke) was last built.
+# They are recorded so a build can be reproduced and so unexpected drift in the
+# GTK stack is visible in review. Regenerate them after a successful build with:
+#
+#   (cd experiments/android-gtk-smoke/subprojects \
+#     && for d in */; do [ -d "$d/.git" ] \
+#        && printf '%s %s\n' "${d%/}" "$(git -C "$d" rev-parse HEAD)"; done)
+#
+# Recorded on 2026-07-25.
+
+[toolchain]
+android-commandline-tools = 13114758
+android-ndk               = 27.2.12479018
+android-platform          = 35
+android-build-tools       = 35.0.0
+jdk                       = 17
+rust                      = 1.93.0
+meson                     = 1.11.2
+blueprint-compiler        = e1522d2520e4faca731b612e8e4fa9364e6cbc56
+pixiewood                 = 00b1862b6434a8778557dc3d3074f43f5fdead1b
+
+[runtime.git]
+cairo      = 200441e6855854eb4dbf338e44d67b00ababe07f
+fontconfig = 304b4de42a4582aaef686c8d06d81b532e5ded21
+freetype   = 526ec5c47b9ebccc4754c85ac0c0cdf7c85a5e9b
+fribidi    = 069a7e3d31e6aa74f2068a8e0804106ce7906639
+gdk-pixbuf = 7df9a8ba0a04ed3dd46f4e5fda5f888288c25c5b
+glib       = d58aae6701e379738edf2ca7dbb5d071deedb029
+gperf      = c24359b4eab86d71c655c3b3fc969f13aac879ce
+graphene   = f89522ca60a76512b8b85c7b8e4d16b94849f22f
+gtk        = 6e80cf794fe4609857ad689011a9c53fb6350e00
+harfbuzz   = 63973005bc07aba599b47fdd4cf788647b601ccd
+libadwaita = 76b763966b97be7c0b0b38c1fe24235e2eeae43a
+libepoxy   = 2df68f811fc1a5f0a6d372ecdb887333ad3f540f
+ministream = baf2b7dcd585002973455a9aeb640fc4180e3747
+pango      = 2b3ad511996d75b8d26bc0fae4f75374dfce9ffa
+
+[runtime.tarball]
+libffi        = 3.5.2
+libjpeg-turbo = 3.1.1
+libpng        = 1.6.49
+libxml2       = 2.12.6
+pcre2         = 10.46
+pixman        = 0.43.4
+proxy-libintl = 0.5
+tiff          = 4.7.0
