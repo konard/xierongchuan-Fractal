@@ -502,12 +502,15 @@ impl Application {
     }
 
     /// Run Fractal.
-    pub(crate) fn run(&self) {
+    ///
+    /// Returns the exit code of the application, which the Android launcher
+    /// returns from `main()` like the desktop binary does.
+    pub(crate) fn run(&self) -> glib::ExitCode {
         info!("Fractal ({})", config::APP_ID);
         info!("Version: {} ({})", config::VERSION, config::PROFILE);
         info!("Datadir: {}", config::PKGDATADIR);
 
-        ApplicationExtManual::run(self);
+        ApplicationExtManual::run(self)
     }
 }
 
