@@ -6,11 +6,13 @@ mod qrcode_scanner;
 mod viewfinder;
 
 pub(crate) use self::qrcode_scanner::QrCodeScanner;
+// `CameraViewfinderImpl` is only implemented by a platform backend, and the
+// fallback API has none.
+#[cfg(target_os = "linux")]
+use self::viewfinder::CameraViewfinderImpl;
 use self::{
     qrcode_scanner::QrVerificationDataBoxed,
-    viewfinder::{
-        CameraViewfinder, CameraViewfinderExt, CameraViewfinderImpl, CameraViewfinderState,
-    },
+    viewfinder::{CameraViewfinder, CameraViewfinderExt, CameraViewfinderState},
 };
 
 cfg_if::cfg_if! {

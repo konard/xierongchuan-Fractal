@@ -5,6 +5,9 @@ pub(crate) const APP_ID: &str = @APP_ID@;
 #[allow(dead_code)]
 pub(crate) const DISABLE_GLYCIN_SANDBOX: bool = @DISABLE_GLYCIN_SANDBOX@;
 pub(crate) const GETTEXT_PACKAGE: &str = @GETTEXT_PACKAGE@;
+// The translations are only read from the installation prefix on the desktop,
+// the Android build ships them inside the application data directory.
+#[allow(dead_code)]
 pub(crate) const LOCALEDIR: &str = @LOCALEDIR@;
 pub(crate) const PKGDATADIR: &str = @PKGDATADIR@;
 pub(crate) const PROFILE: AppProfile = AppProfile::@PROFILE@;
