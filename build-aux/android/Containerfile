@@ -15,7 +15,7 @@ ARG ANDROID_COMMANDLINE_TOOLS_SHA256=7ec965280a073311c339e571cd5de778b9975026cfc
 ARG ANDROID_NDK_VERSION=27.2.12479018
 ARG ANDROID_PLATFORM=35
 ARG ANDROID_BUILD_TOOLS_VERSION=35.0.0
-ARG MESON_VERSION=1.9.0
+ARG MESON_VERSION=1.11.2
 ARG BLUEPRINT_COMPILER_VERSION=v0.18.0
 ARG BLUEPRINT_COMPILER_COMMIT=e1522d2520e4faca731b612e8e4fa9364e6cbc56
 # Pinned after `git ls-remote` on 2026-07-25. Do not replace with a branch.
@@ -61,7 +61,8 @@ RUN apt-get update \
         zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Meson 1.9 is required for `android_exe_type`; Debian Bookworm's package is
+# Meson >= 1.9 is required for `android_exe_type` and >= 1.11 by the
+# fontconfig subproject that Pango pulls in. Debian Bookworm's package is
 # older. Keep this isolated from the host by installing it into the image.
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
         meson==${MESON_VERSION}

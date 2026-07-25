@@ -11,6 +11,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 image=${FRACTAL_ANDROID_IMAGE:-localhost/fractal-android-builder:dev}
 state_dir="$project_dir/.android-container"
+apk_relative_path=.pixiewood/android/app/build/outputs/apk/debug/app-debug.apk
 
 engine=${FRACTAL_CONTAINER_ENGINE:-}
 if [ -z "$engine" ]; then
@@ -52,6 +53,8 @@ Commands:
   prepare MANIFEST      Run `pixiewood prepare` for an Android manifest.
   generate              Run `pixiewood generate` after prepare.
   build [--release]     Run `pixiewood build` after generate.
+  smoke                 Build the GTK/libadwaita smoke-test APK end to end.
+  verify [APK]          Run static checks on a built APK.
   install [APK]         Install the debug APK with the host's adb.
   logcat [ARGS ...]     Run the host's adb logcat.
 
@@ -136,9 +139,36 @@ case "$command" in
         fi
         run_container pixiewood -C /workspace build
         ;;
+    smoke)
+        shift
+        if [ "$#" -ne 0 ]; then
+            usage >&2
+            exit 2
+        fi
+        ensure_image
+        smoke_dir=experiments/android-gtk-smoke
+        run_container pixiewood -C "/workspace/$smoke_dir" prepare \
+            "$smoke_dir/pixiewood.xml"
+        run_container pixiewood -C "/workspace/$smoke_dir" generate
+        run_container pixiewood -C "/workspace/$smoke_dir" build
+        run_container build-aux/android/verify-apk.sh \
+            "$smoke_dir/$apk_relative_path"
+        echo "Smoke test APK: $smoke_dir/$apk_relative_path"
+        ;;
+    verify)
+        shift
+        apk=${1:-"$project_dir/$apk_relative_path"}
+        if [ "$#" -gt 1 ] || [ ! -f "$apk" ]; then
+            echo "APK not found: $apk" >&2
+            exit 2
+        fi
+        ensure_image
+        run_container build-aux/android/verify-apk.sh \
+            "${apk#"$project_dir/"}"
+        ;;
     install)
         shift
-        apk=${1:-"$project_dir/.pixiewood/android/app/build/outputs/apk/debug/app-debug.apk"}
+        apk=${1:-"$project_dir/$apk_relative_path"}
         if [ "$#" -gt 1 ] || [ ! -f "$apk" ]; then
             echo "APK not found: $apk" >&2
             exit 2

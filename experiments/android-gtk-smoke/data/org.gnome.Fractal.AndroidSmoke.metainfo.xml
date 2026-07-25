@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application" xmlns="https://specifications.freedesktop.org/metainfo/1.0">
+  <id>org.gnome.Fractal.AndroidSmoke</id>
+  <name>Fractal Android Smoke Test</name>
+  <summary>Verify the GTK4 Android runtime</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Minimal GTK4/libadwaita application used to verify that the Fractal
+      Android toolchain container builds and packages a working APK.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.gnome.Fractal.AndroidSmoke.desktop</launchable>
+  <releases>
+    <release version="0.1.0" date="2026-07-25"/>
+  </releases>
+</component>
