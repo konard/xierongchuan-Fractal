@@ -131,10 +131,11 @@ already succeeded.
 A machine that does not have those 20 GiB to spare does not have to build the
 package at all: `.github/workflows/android.yml` runs the very same commands on
 a GitHub Actions runner and uploads the result as the
-`fractal-android-debug-apk` artifact. The workflow frees the preinstalled
-toolchains that a hosted runner does not need here, then runs `podman.sh image`
-and `podman.sh app` with Docker as the engine -- the script accepts it as a
-fallback, and Docker is what the runners ship.
+`fractal-android-debug-apk` artifact. It runs `podman.sh image` and
+`podman.sh app` with Docker as the engine -- the script accepts it as a
+fallback, and Docker is what the runners ship. A hosted runner has the room:
+the last full run started with 88 GiB free, used 13 GiB of it and took
+23 minutes from an empty cache, of which the application build was 17.
 
 Two things are kept between runs, both keyed by the file that defines them
 rather than by a date or a floating tag:
@@ -142,7 +143,8 @@ rather than by a date or a floating tag:
 - the toolchain image, pushed to `ghcr.io/<owner>/fractal-android-builder`
   under a tag derived from the checksum of the `Containerfile`, so an unchanged
   recipe is pulled instead of downloading the Android SDK and the NDK again;
-- the Cargo registry, cached under the checksum of `Cargo.lock`.
+- `.android-container/`, the Cargo and Gradle home of the build, cached under
+  the checksum of `Cargo.lock`.
 
 A pull request from a fork gets a read-only token: it builds the image in the
 job and skips the push, which costs time but never fails the build.

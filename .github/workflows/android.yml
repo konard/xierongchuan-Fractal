@@ -71,30 +71,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # A hosted runner arrives with about 20 GiB free, which is what the build
-      # tree alone needs before the toolchain image is even pulled. The
-      # preinstalled toolchains that this build has no use for are worth more
-      # than that again.
-      - name: Free the disk space the build needs
-        run: |
-          set -eu
-          df -h /
-          sudo rm -rf \
-            /opt/ghc \
-            /opt/hostedtoolcache/CodeQL \
-            /usr/local/.ghcup \
-            /usr/local/lib/android \
-            /usr/local/share/powershell \
-            /usr/share/dotnet \
-            /usr/share/swift
-          sudo docker image prune --all --force
-          df -h /
-
       # The image is tagged with the checksum of the recipe it was built from,
       # the same way `podman.sh` labels the local one, so a change to the
       # Containerfile builds a new image instead of reusing a stale one. Every
-      # later run of an unchanged recipe pulls it and saves the twenty minutes
-      # of downloading the Android SDK and the NDK again.
+      # later run of an unchanged recipe pulls it instead of downloading the
+      # Android SDK, the NDK and the Fedora typelibs from their upstreams
+      # again, which is both slower and the part of this build most likely to
+      # fail for a reason that has nothing to do with the change under test.
       - name: Reuse the published toolchain image
         id: toolchain
         env:
@@ -124,26 +107,27 @@ jobs:
           FRACTAL_ANDROID_IMAGE: ${{ steps.toolchain.outputs.image }}
         run: build-aux/android/podman.sh image
 
-      # Publishing before the application build, not after: an image that took
-      # twenty minutes to build is worth keeping even when the build that
-      # follows it fails. A pull request from a fork gets a read-only token, so
-      # the push is expected to fail there and must not fail the job.
+      # Publishing before the application build, not after: the image is worth
+      # keeping even when the build that follows it fails, and that is exactly
+      # the run whose image the next attempt wants. A pull request from a fork
+      # gets a read-only token, so the push is expected to fail there and must
+      # not fail the job.
       - name: Publish the toolchain image
         if: steps.toolchain.outputs.cached != 'true'
         continue-on-error: true
         run: docker push "${{ steps.toolchain.outputs.image }}"
 
-      # Cargo downloads the dependencies into the state directory of the
-      # container. They are pinned by Cargo.lock, so the key is the lock file
-      # itself rather than a date or a floating tag.
-      - name: Cache the Rust dependencies
+      # `.android-container/` is the state directory the build gets instead of
+      # the home directory of the user: the Cargo home, the Gradle home and
+      # everything the two download. The Rust dependencies in it are pinned by
+      # Cargo.lock, so that is the key, and the prefix restore key lets a run
+      # whose lock file moved still start from the previous download.
+      - name: Cache the downloads of Cargo and Gradle
         uses: actions/cache@v4
         with:
-          path: |
-            .android-container/cargo/registry
-            .android-container/cargo/git
-          key: android-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: android-cargo-
+          path: .android-container
+          key: android-state-${{ hashFiles('Cargo.lock') }}
+          restore-keys: android-state-
 
       # `app` runs prepare/generate/build and then `verify-apk.sh`, which is
       # what checks minSdkVersion, the single arm64-v8a ABI, the packaged GTK
@@ -160,8 +144,11 @@ jobs:
           path: .pixiewood/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
           if-no-files-found: error
 
+      # The numbers this prints are the ones the comments above rely on: a
+      # hosted runner arrived with 88 GiB free and the build used 13 GiB of it,
+      # so nothing has to be uninstalled to make room for it.
       - name: Report the disk usage of the build
         if: always()
         run: |
           df -h /
-          du -sh .pixiewood .android-container 2> /dev/null || true
+          du -sh .pixiewood .android-container/* 2> /dev/null || true
