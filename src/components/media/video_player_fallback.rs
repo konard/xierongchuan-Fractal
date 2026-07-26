@@ -74,7 +74,8 @@ mod imp {
                 return;
             }
 
-            self.placeholder.set_pixel_size(if compact { 24 } else { 48 });
+            self.placeholder
+                .set_pixel_size(if compact { 24 } else { 48 });
 
             self.compact.set(compact);
             self.obj().notify_compact();

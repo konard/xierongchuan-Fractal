@@ -28,8 +28,8 @@ mod queue;
 
 pub(crate) use queue::{IMAGE_QUEUE, ImageRequestPriority};
 
-use super::{FrameDimensions, MediaFileError};
 use self::decoder::DecoderSource;
+use super::{FrameDimensions, MediaFileError};
 use crate::{
     RUNTIME,
     components::AnimatedImagePaintable,

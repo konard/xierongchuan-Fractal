@@ -56,7 +56,9 @@ pub(crate) struct AndroidSecret;
 impl SecretExt for AndroidSecret {
     async fn restore_sessions() -> Result<Vec<StoredSession>, SecretError> {
         let handle = spawn_tokio!(async move {
-            let _guard = FILE_LOCK.lock().expect("session file lock should not be poisoned");
+            let _guard = FILE_LOCK
+                .lock()
+                .expect("session file lock should not be poisoned");
             load_sessions()
         });
 
@@ -65,7 +67,9 @@ impl SecretExt for AndroidSecret {
 
     async fn store_session(session: StoredSession) -> Result<(), SecretError> {
         let handle = spawn_tokio!(async move {
-            let _guard = FILE_LOCK.lock().expect("session file lock should not be poisoned");
+            let _guard = FILE_LOCK
+                .lock()
+                .expect("session file lock should not be poisoned");
             store_session_inner(session)
         });
 
@@ -76,7 +80,9 @@ impl SecretExt for AndroidSecret {
         let id = session.id.clone();
 
         let handle = spawn_tokio!(async move {
-            let _guard = FILE_LOCK.lock().expect("session file lock should not be poisoned");
+            let _guard = FILE_LOCK
+                .lock()
+                .expect("session file lock should not be poisoned");
             delete_session_inner(&id);
         });
 

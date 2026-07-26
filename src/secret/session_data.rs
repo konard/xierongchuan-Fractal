@@ -175,8 +175,14 @@ mod tests {
             assert_eq!(decoded.device_id, session.device_id);
             assert_eq!(decoded.id, session.id);
             assert_eq!(
-                decoded.client_id.as_ref().map(|client_id| client_id.as_str()),
-                session.client_id.as_ref().map(|client_id| client_id.as_str())
+                decoded
+                    .client_id
+                    .as_ref()
+                    .map(|client_id| client_id.as_str()),
+                session
+                    .client_id
+                    .as_ref()
+                    .map(|client_id| client_id.as_str())
             );
             assert_eq!(*decoded.passphrase, *session.passphrase);
         }
@@ -212,7 +218,10 @@ mod tests {
         let bytes = rmp_serde::to_vec_named(&sessions).unwrap();
 
         let error = SerializedSessions::decode(&bytes).unwrap_err();
-        assert!(matches!(error, SessionsFormatError::InvalidField("user_id")));
+        assert!(matches!(
+            error,
+            SessionsFormatError::InvalidField("user_id")
+        ));
     }
 
     #[test]

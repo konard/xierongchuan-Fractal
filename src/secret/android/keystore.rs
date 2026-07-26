@@ -108,7 +108,9 @@ pub(super) fn encrypt(plaintext: &[u8]) -> Result<Vec<u8>, KeystoreError> {
         let key = get_or_create_key(env)?;
         let cipher = cipher_instance(env)?;
 
-        let mode = env.get_static_field("javax/crypto/Cipher", "ENCRYPT_MODE", "I")?.i()?;
+        let mode = env
+            .get_static_field("javax/crypto/Cipher", "ENCRYPT_MODE", "I")?
+            .i()?;
         env.call_method(
             &cipher,
             "init",
@@ -163,7 +165,9 @@ pub(super) fn decrypt(bytes: &[u8]) -> Result<Vec<u8>, KeystoreError> {
             &[JValue::Int(TAG_SIZE), (&iv).into()],
         )?;
 
-        let mode = env.get_static_field("javax/crypto/Cipher", "DECRYPT_MODE", "I")?.i()?;
+        let mode = env
+            .get_static_field("javax/crypto/Cipher", "DECRYPT_MODE", "I")?
+            .i()?;
         env.call_method(
             &cipher,
             "init",
@@ -246,9 +250,7 @@ fn take_exception(env: &mut JNIEnv<'_>) -> Option<String> {
             .ok()?
             .l()
             .ok()?;
-        env.get_string(&JString::from(string))
-            .ok()
-            .map(Into::into)
+        env.get_string(&JString::from(string)).ok().map(Into::into)
     });
 
     Some(description.unwrap_or_else(|| "unknown Java exception".to_owned()))
@@ -328,8 +330,12 @@ fn get_or_create_key<'local>(env: &mut JNIEnv<'local>) -> Result<JObject<'local>
         )?
         .l()?;
 
-    let purposes = env.get_static_field(KEY_PROPERTIES, "PURPOSE_ENCRYPT", "I")?.i()?
-        | env.get_static_field(KEY_PROPERTIES, "PURPOSE_DECRYPT", "I")?.i()?;
+    let purposes = env
+        .get_static_field(KEY_PROPERTIES, "PURPOSE_ENCRYPT", "I")?
+        .i()?
+        | env
+            .get_static_field(KEY_PROPERTIES, "PURPOSE_DECRYPT", "I")?
+            .i()?;
     let alias = env.new_string(KEY_ALIAS)?;
     let builder = env.new_object(
         KEY_GEN_PARAMETER_SPEC_BUILDER,
@@ -338,8 +344,12 @@ fn get_or_create_key<'local>(env: &mut JNIEnv<'local>) -> Result<JObject<'local>
     )?;
 
     let builder = call_builder_with_strings(env, &builder, "setBlockModes", "BLOCK_MODE_GCM")?;
-    let builder =
-        call_builder_with_strings(env, &builder, "setEncryptionPaddings", "ENCRYPTION_PADDING_NONE")?;
+    let builder = call_builder_with_strings(
+        env,
+        &builder,
+        "setEncryptionPaddings",
+        "ENCRYPTION_PADDING_NONE",
+    )?;
     let builder = env
         .call_method(
             &builder,

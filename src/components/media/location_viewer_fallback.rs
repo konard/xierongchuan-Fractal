@@ -42,7 +42,10 @@ mod imp {
                     .icon_name("map-marker-symbolic")
                     .pixel_size(32)
                     .build(),
-                label: gtk::Label::builder().wrap(true).justify(gtk::Justification::Center).build(),
+                label: gtk::Label::builder()
+                    .wrap(true)
+                    .justify(gtk::Justification::Center)
+                    .build(),
                 compact: Cell::default(),
             }
         }

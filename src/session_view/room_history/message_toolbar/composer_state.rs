@@ -16,6 +16,10 @@ use ruma::{
 use tracing::{error, warn};
 
 use super::ComposerParser;
+// The traits of the prelude of `sourceview` might be the same as the ones of
+// GTK, which are already in scope.
+#[allow(unused_imports)]
+use crate::utils::sourceview::prelude::*;
 use crate::{
     components::{AvatarImageSafetySetting, Pill, PillSource},
     session::{Event, Member, Room, Timeline},
@@ -25,10 +29,6 @@ use crate::{
         sourceview,
     },
 };
-// The traits of the prelude of `sourceview` might be the same as the ones of
-// GTK, which are already in scope.
-#[allow(unused_imports)]
-use crate::utils::sourceview::prelude::*;
 
 // The duration in seconds we wait for before saving a change.
 const SAVING_TIMEOUT: u32 = 3;
