@@ -4,9 +4,10 @@
 //! the desktop build loads from `PKGDATADIR` must either be compiled into the
 //! library or be resolved inside the sandbox of the application at runtime.
 
-use std::path::PathBuf;
+use std::{panic, path::PathBuf, thread};
 
 use gtk::{gio, glib};
+use tracing::error;
 use tracing_subscriber::{EnvFilter, prelude::*};
 
 use super::ensure_dir;
@@ -29,6 +30,75 @@ pub(crate) fn init_logging() {
         .with(tracing_android::layer("Fractal").expect("logcat layer should be created"))
         .with(env_filter)
         .init();
+
+    // The logger is in place, so panics can be routed to it before any code
+    // that might panic runs.
+    init_panic_logging();
+}
+
+/// Route panics to `logcat`.
+///
+/// The default panic hook writes to standard error, which Android discards, so
+/// a panic there aborts the process without leaving anything in `logcat` -- the
+/// crash looks like a bare `SIGABRT` with no reason. This forwards the panic to
+/// the tracing logger, which does reach `logcat`, and then calls the previous
+/// hook so a backtrace is still emitted for anyone attached to standard error.
+fn init_panic_logging() {
+    let previous_hook = panic::take_hook();
+
+    panic::set_hook(Box::new(move |info| {
+        let thread = thread::current();
+        let name = thread.name().unwrap_or("<unnamed>");
+        let location = info
+            .location()
+            .map_or_else(|| "an unknown location".to_owned(), ToString::to_string);
+
+        error!(
+            "Thread '{name}' panicked at {location}: {}",
+            panic_message(info.payload())
+        );
+
+        previous_hook(info);
+    }));
+}
+
+/// The message a panic carries, whether it was a `&str` or a formatted
+/// `String`.
+///
+/// [`panic::PanicHookInfo::message`] is not yet stable, so the payload is
+/// inspected by hand, exactly as the standard hook does it.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> &str {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        message
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message
+    } else {
+        "Box<dyn Any>"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panic_message_from_str() {
+        let payload = panic::catch_unwind(|| panic!("a static message")).unwrap_err();
+        assert_eq!(panic_message(&*payload), "a static message");
+    }
+
+    #[test]
+    fn panic_message_from_string() {
+        let value = 42;
+        let payload = panic::catch_unwind(|| panic!("a formatted message: {value}")).unwrap_err();
+        assert_eq!(panic_message(&*payload), "a formatted message: 42");
+    }
+
+    #[test]
+    fn panic_message_from_other_payload() {
+        let payload = panic::catch_unwind(|| panic::panic_any(42_u8)).unwrap_err();
+        assert_eq!(panic_message(&*payload), "Box<dyn Any>");
+    }
 }
 
 /// The directory where the translations are installed.

@@ -1,0 +1,15 @@
+[package]
+name = "panic-message"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Host-runnable copy of the panic payload extraction in
+# `src/platform/android.rs`, so the logic is tested where the GTK development
+# libraries of the Android build are not available. Keep the function and its
+# tests in sync with the platform module.
+
+[lib]
+path = "src/lib.rs"
+
+[workspace]
