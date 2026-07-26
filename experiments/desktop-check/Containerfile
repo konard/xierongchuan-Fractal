@@ -8,7 +8,7 @@ RUN dnf -y install --setopt=install_weak_deps=False \
         glycin-devel glycin-gtk4-devel \
         gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free-devel \
         libwebp-devel sqlite-devel openssl-devel gettext-devel \
-        rust cargo \
+        rust cargo clippy \
         meson ninja-build blueprint-compiler glib2-devel desktop-file-utils \
         libappstream-glib appstream \
     && dnf clean all
