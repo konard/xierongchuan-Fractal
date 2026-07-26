@@ -6,6 +6,8 @@
 //! used instead: the text can still be read, written and sent, only the syntax
 //! highlighting is missing.
 
+use gtk::glib::{self, object::IsA};
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "sourceview")] {
         /// The buffer used by the text views of the application.
@@ -23,7 +25,6 @@ cfg_if::cfg_if! {
 
         /// Setup the style scheme for the given buffer.
         pub(crate) fn setup_style_scheme(buffer: &Buffer) {
-            use gtk::glib;
             use sourceview::prelude::*;
 
             let manager = adw::StyleManager::default();
@@ -105,6 +106,72 @@ cfg_if::cfg_if! {
             buffer.set_text(text);
 
             buffer
+        }
+    }
+}
+
+/// The property of a buffer that toggles syntax highlighting.
+///
+/// It is only defined by `GtkSourceBuffer`.
+const HIGHLIGHT_SYNTAX_PROPERTY: &str = "highlight-syntax";
+
+/// Bind the given boolean property of `source` to the syntax highlighting of
+/// the given buffer.
+///
+/// Returns the binding, so it can be undone with [`glib::Binding::unbind()`],
+/// or `None` when the buffer does not support syntax highlighting.
+///
+/// The property is looked up first because binding a property that does not
+/// exist panics, and a panic in a GObject callback aborts the process. That
+/// is what happens with the plain `GtkTextBuffer` used when the `sourceview`
+/// feature is disabled.
+pub(crate) fn bind_highlight_syntax(
+    source: &impl IsA<glib::Object>,
+    source_property: &str,
+    buffer: &Buffer,
+) -> Option<glib::Binding> {
+    use gtk::prelude::*;
+
+    if !buffer.has_property(HIGHLIGHT_SYNTAX_PROPERTY) {
+        return None;
+    }
+
+    let binding = source
+        .bind_property(source_property, buffer, HIGHLIGHT_SYNTAX_PROPERTY)
+        .sync_create()
+        .build();
+
+    Some(binding)
+}
+
+#[cfg(test)]
+mod tests {
+    use gtk::prelude::*;
+
+    use super::*;
+
+    /// Binding the syntax highlighting must work with `GtkSourceBuffer` and
+    /// must be a no-op with the plain `GtkTextBuffer` of the fallback, instead
+    /// of aborting the process.
+    #[test]
+    fn bind_highlight_syntax_supports_both_buffers() {
+        // Construct the objects with `glib`, so the test does not need GTK to
+        // be initialized, which needs a display.
+        let source = glib::Object::new::<gtk::TextBuffer>();
+        let buffer = glib::Object::new::<Buffer>();
+
+        let binding = bind_highlight_syntax(&source, "enable-undo", &buffer);
+
+        assert_eq!(binding.is_some(), cfg!(feature = "sourceview"));
+
+        if let Some(binding) = binding {
+            source.set_enable_undo(false);
+            assert!(!buffer.property::<bool>(HIGHLIGHT_SYNTAX_PROPERTY));
+
+            source.set_enable_undo(true);
+            assert!(buffer.property::<bool>(HIGHLIGHT_SYNTAX_PROPERTY));
+
+            binding.unbind();
         }
     }
 }

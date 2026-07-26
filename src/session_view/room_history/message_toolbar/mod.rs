@@ -132,7 +132,9 @@ mod imp {
         #[property(get = Self::current_composer_state)]
         current_composer_state: PhantomData<ComposerState>,
         composer_state_handler: RefCell<Option<glib::SignalHandlerId>>,
-        buffer_handlers: RefCell<Option<(glib::SignalHandlerId, glib::Binding)>>,
+        /// The signal handler of the current buffer, and the binding of the
+        /// syntax highlighting, if the platform supports it.
+        buffer_handlers: RefCell<Option<(glib::SignalHandlerId, Option<glib::Binding>)>>,
         /// The composer states, per-session and per-room.
         ///
         /// The fallback composer state has the `None` key.
@@ -453,7 +455,9 @@ mod imp {
                 let prev_buffer = self.message_entry.buffer();
                 prev_buffer.disconnect(handler);
 
-                binding.unbind();
+                if let Some(binding) = binding {
+                    binding.unbind();
+                }
             }
 
             let composer_state = self.current_composer_state();
@@ -477,10 +481,8 @@ mod imp {
             self.send_button.set_sensitive(!is_empty);
 
             // Markdown highlighting.
-            let markdown_binding = obj
-                .bind_property("markdown-enabled", &buffer, "highlight-syntax")
-                .sync_create()
-                .build();
+            let markdown_binding =
+                sourceview::bind_highlight_syntax(&*obj, "markdown-enabled", &buffer);
 
             self.buffer_handlers
                 .replace(Some((text_notify_handler, markdown_binding)));
