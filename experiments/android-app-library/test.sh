@@ -55,6 +55,13 @@ launchable-activity: name='org.gtk.android.ToplevelActivity'  label='' icon=''
 EOF
 grep -v 'android.permission.INTERNET' "$badging" > "$badging_without_internet"
 
+# The development profile, which is what the Android build uses: Pixiewood
+# lowercases the component id of the metainfo file to name the Android package,
+# while the GSettings schema keeps the id of the application.
+badging_devel="$work_dir/badging-devel.txt"
+sed "s/name='org.gnome.Fractal'/name='org.gnome.fractal.devel'/" "$badging" \
+    > "$badging_devel"
+
 # The shape of `aapt2 dump xmltree --file AndroidManifest.xml`, cut down to the
 # meta-data element that Pixiewood generates from the Meson target name.
 xmltree="$work_dir/xmltree.txt"
@@ -144,6 +151,10 @@ make_apk() {
         foreign)
             printf 'GVariant\0org.gtk.Settings.FileChooser\0' > "$schemas"
             ;;
+        devel)
+            printf 'GVariant\0org.gtk.Settings.FileChooser\0org.gnome.Fractal.Devel\0' \
+                > "$schemas"
+            ;;
         missing) rm -f "$schemas" ;;
         *) echo "unknown schemas case: $2" >&2; exit 2 ;;
     esac
@@ -219,7 +230,22 @@ check "a package without the INTERNET permission fails" \
 check_output "the missing permission is reported" \
     "FAIL: the package does not request the INTERNET permission"
 
-# 10. The same script checks the package of the toolchain smoke test, which is
+# 10. The package name and the schema id differ in case, which is what the real
+#     package looks like: `org.gnome.fractal.devel` against
+#     `org.gnome.Fractal.Devel`.
+check "a package of the development profile passes" \
+    "$(verify packaged "$xmltree" devel present "$badging_devel")" 0
+check_output "the schema of the development profile is reported" \
+    "ok: the schema of org.gnome.fractal.devel is compiled in"
+
+# 11. Case is all that may differ: another application's schema is still not
+#     the schema of this one.
+check "a package with a foreign schema still fails in that profile" \
+    "$(verify packaged "$xmltree" foreign present "$badging_devel")" 1
+check_output "the missing schema of the development profile is reported" \
+    "FAIL: the schemas contain no schema for org.gnome.fractal.devel"
+
+# 12. The same script checks the package of the toolchain smoke test, which is
 #     a minimal GTK application: no schema of its own, no translations, no
 #     network. Those three checks are turned off for it, and everything about
 #     the toolchain -- including the schemas that GTK itself installs -- is

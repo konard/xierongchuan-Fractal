@@ -165,11 +165,15 @@ if unzip -p "$apk" "$schemas_asset" > "$schemas" 2> /dev/null && [ -s "$schemas"
     pass "compiled GSettings schemas are packaged"
     package_name=$(printf '%s\n' "$badging" \
         | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)
+    # Pixiewood lowercases the component id of the metainfo file to build the
+    # Android package name -- `org.gnome.Fractal.Devel` becomes
+    # `org.gnome.fractal.devel` -- while the schema keeps the id of the
+    # application, so the two are compared without regard to case.
     if [ "$app_checks" != 1 ]; then
         :
     elif [ -z "$package_name" ]; then
         fail "the manifest declares no package name"
-    elif grep -qa -- "$package_name" "$schemas"; then
+    elif grep -qai -- "$package_name" "$schemas"; then
         pass "the schema of $package_name is compiled in"
     else
         fail "the schemas contain no schema for $package_name"
