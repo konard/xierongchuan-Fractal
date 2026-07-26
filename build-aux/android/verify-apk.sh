@@ -8,20 +8,30 @@
 #
 # Checked properties:
 #   * the manifest declares the expected minSdkVersion;
+#   * the package requests the INTERNET permission;*
 #   * the package contains native libraries only for the expected ABI;
 #   * the library that the GTK runtime loads on startup, named by the
 #     `gtk.android.lib_name` meta-data of the manifest, is packaged and exports
 #     the `main` symbol that the runtime looks up in it;
 #   * the GTK/libadwaita runtime libraries are packaged;
-#   * the compiled GSettings schemas are among the assets and contain the
-#     schema of the application, and the translations are among them too;
+#   * the compiled GSettings schemas are among the assets, and contain the
+#     schema of the application;* the translations are among them too;*
 #   * no packaged library has a DT_NEEDED entry that is missing from the
 #     package and is not provided by the Android system itself.
+#
+# The properties marked with * are about Fractal rather than the toolchain, and
+# are skipped with FRACTAL_ANDROID_APP_CHECKS=0, which is how the package of
+# the toolchain smoke test is checked.
 set -eu
 
 expected_min_sdk=${FRACTAL_ANDROID_MIN_SDK:-31}
 expected_abi=${FRACTAL_ANDROID_ABI:-arm64-v8a}
 gettext_package=${FRACTAL_GETTEXT_PACKAGE:-fractal}
+# The toolchain smoke test packages a minimal GTK application instead of
+# Fractal. It has no settings schema of its own, no translations and no reason
+# to reach the network, so the checks that are about Fractal itself are turned
+# off for it. Everything about the toolchain is still checked.
+app_checks=${FRACTAL_ANDROID_APP_CHECKS:-1}
 # Libraries that Android itself provides to applications (NDK stable ABI).
 system_libs="libc.so libm.so libdl.so liblog.so libz.so libandroid.so \
 libEGL.so libGLESv1_CM.so libGLESv2.so libGLESv3.so libOpenSLES.so \
@@ -77,6 +87,17 @@ if [ -n "$launchable" ]; then
     pass "launcher activity is $launchable"
 else
     fail "the package has no launcher activity"
+fi
+
+# Pixiewood derives the permissions from the metainfo file, so a Matrix client
+# that cannot reach the network is a packaging error rather than a runtime one.
+if [ "$app_checks" = 1 ]; then
+    if printf '%s\n' "$badging" \
+            | grep -q "^uses-permission: name='android.permission.INTERNET'"; then
+        pass "the package requests the INTERNET permission"
+    else
+        fail "the package does not request the INTERNET permission"
+    fi
 fi
 
 abis=$(unzip -Z1 "$apk" 'lib/*/*.so' 2>/dev/null | cut -d/ -f2 | sort -u)
@@ -144,7 +165,9 @@ if unzip -p "$apk" "$schemas_asset" > "$schemas" 2> /dev/null && [ -s "$schemas"
     pass "compiled GSettings schemas are packaged"
     package_name=$(printf '%s\n' "$badging" \
         | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)
-    if [ -z "$package_name" ]; then
+    if [ "$app_checks" != 1 ]; then
+        :
+    elif [ -z "$package_name" ]; then
         fail "the manifest declares no package name"
     elif grep -qa -- "$package_name" "$schemas"; then
         pass "the schema of $package_name is compiled in"
@@ -158,13 +181,15 @@ fi
 # The translations are shipped the same way, and were dropped by the same
 # filter: `i18n.gettext()` tags them `i18n`, so `meson install --tags runtime`
 # left the package English-only.
-catalogues=$(unzip -Z1 "$apk" \
-    "assets/share/locale/*/LC_MESSAGES/$gettext_package.mo" 2> /dev/null \
-    | wc -l)
-if [ "$catalogues" -gt 0 ]; then
-    pass "$catalogues translations are packaged"
-else
-    fail "no translation of $gettext_package is packaged"
+if [ "$app_checks" = 1 ]; then
+    catalogues=$(unzip -Z1 "$apk" \
+        "assets/share/locale/*/LC_MESSAGES/$gettext_package.mo" 2> /dev/null \
+        | wc -l)
+    if [ "$catalogues" -gt 0 ]; then
+        pass "$catalogues translations are packaged"
+    else
+        fail "no translation of $gettext_package is packaged"
+    fi
 fi
 
 missing_deps=""

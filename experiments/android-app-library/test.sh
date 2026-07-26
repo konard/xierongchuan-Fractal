@@ -45,12 +45,15 @@ ANDROID_NDK_HOME="$sdk/ndk"
 export ANDROID_SDK_ROOT ANDROID_NDK_HOME
 
 badging="$work_dir/badging.txt"
+badging_without_internet="$work_dir/badging-without-internet.txt"
 cat > "$badging" <<'EOF'
 package: name='org.gnome.Fractal' versionCode='140100000' versionName='14.1'
 minSdkVersion:'31'
 targetSdkVersion:'36'
+uses-permission: name='android.permission.INTERNET'
 launchable-activity: name='org.gtk.android.ToplevelActivity'  label='' icon=''
 EOF
+grep -v 'android.permission.INTERNET' "$badging" > "$badging_without_internet"
 
 # The shape of `aapt2 dump xmltree --file AndroidManifest.xml`, cut down to the
 # meta-data element that Pixiewood generates from the Meson target name.
@@ -67,9 +70,6 @@ N: android=http://schemas.android.com/apk/res/android
         A: android:value(0x01010024)="fractal" (Raw: "fractal")
 EOF
 sed '/meta-data/,$d' "$xmltree" > "$xmltree_without_lib_name"
-
-FAKE_AAPT2_BADGING="$badging"
-export FAKE_AAPT2_BADGING
 
 failures=0
 check() {
@@ -152,9 +152,13 @@ make_apk() {
 }
 
 log="$work_dir/verify.log"
+# `$app_checks` is what `podman.sh` sets for the toolchain smoke test, whose
+# package is not Fractal; the individual cases below override it.
+app_checks=1
 verify() {
     make_apk "$1" "${3:-present}" "${4:-present}"
-    FAKE_AAPT2_XMLTREE="${2:-$xmltree}" \
+    FAKE_AAPT2_XMLTREE="${2:-$xmltree}" FAKE_AAPT2_BADGING="${5:-$badging}" \
+        FRACTAL_ANDROID_APP_CHECKS="$app_checks" \
         sh "$verify_apk" "$apk" > "$log" 2>&1 && echo 0 || echo $?
 }
 
@@ -207,6 +211,31 @@ check "a package without translations fails" \
     "$(verify packaged "$xmltree" present missing)" 1
 check_output "the missing translations are reported" \
     "FAIL: no translation of fractal is packaged"
+
+# 9. Pixiewood derives the permissions from the metainfo file. A Matrix client
+#    without the INTERNET permission starts and then cannot do anything.
+check "a package without the INTERNET permission fails" \
+    "$(verify packaged "$xmltree" present present "$badging_without_internet")" 1
+check_output "the missing permission is reported" \
+    "FAIL: the package does not request the INTERNET permission"
+
+# 10. The same script checks the package of the toolchain smoke test, which is
+#     a minimal GTK application: no schema of its own, no translations, no
+#     network. Those three checks are turned off for it, and everything about
+#     the toolchain -- including the schemas that GTK itself installs -- is
+#     still checked.
+app_checks=0
+check "the smoke test package passes without the Fractal properties" \
+    "$(verify packaged "$xmltree" foreign missing "$badging_without_internet")" 0
+check_output "the schemas of the toolchain are still checked" \
+    "ok: compiled GSettings schemas are packaged"
+check "the smoke test package still needs its application library" \
+    "$(verify missing "$xmltree" foreign missing "$badging_without_internet")" 1
+check_output "the missing application library is still reported" \
+    "FAIL: application library libfractal.so is missing from the package"
+check "the smoke test package still needs compiled schemas" \
+    "$(verify packaged "$xmltree" missing missing "$badging_without_internet")" 1
+app_checks=1
 
 if [ "$failures" -eq 0 ]; then
     echo "All checks passed."

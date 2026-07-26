@@ -278,6 +278,7 @@ engine_run() {
         --env CARGO_HOME=/workspace/.android-container/cargo \
         --env CARGO_BUILD_JOBS="$cargo_jobs" \
         --env GRADLE_USER_HOME=/workspace/.android-container/gradle \
+        --env FRACTAL_ANDROID_APP_CHECKS="${FRACTAL_ANDROID_APP_CHECKS:-1}" \
         --volume "$project_dir:/workspace${volume_suffix}" \
         --workdir /workspace \
         "$image" "$@"
@@ -386,6 +387,12 @@ case "$command" in
             "$smoke_dir/pixiewood.xml"
         run_step pixiewood -C "/workspace/$smoke_dir" generate
         run_step pixiewood -C "/workspace/$smoke_dir" build
+        # The smoke test packages a minimal GTK application, not Fractal: it has
+        # no settings schema of its own, no translations and no reason to reach
+        # the network. Only the properties of the toolchain are checked here.
+        # `engine_run` passes the variable into the container.
+        FRACTAL_ANDROID_APP_CHECKS=0
+        export FRACTAL_ANDROID_APP_CHECKS
         run_step build-aux/android/verify-apk.sh \
             "$smoke_dir/$apk_relative_path"
         report_apk "Smoke test APK" "$smoke_dir/$apk_relative_path"

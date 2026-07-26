@@ -46,7 +46,11 @@ build-aux/android/podman.sh smoke
 This runs `pixiewood prepare`/`generate`/`build` for the smoke application and
 then checks the resulting APK with `verify-apk.sh` (minSdkVersion, launcher
 activity, single `arm64-v8a` ABI, packaged GTK/libadwaita runtime libraries and
-resolvable `DT_NEEDED` entries). Any built APK can be re-checked with:
+resolvable `DT_NEEDED` entries). The checks that are about Fractal itself
+rather than the toolchain are turned off for it with
+`FRACTAL_ANDROID_APP_CHECKS=0`, because the smoke application has no settings
+schema of its own, no translations and no reason to reach the network. Any
+built APK can be re-checked with:
 
 ```sh
 build-aux/android/podman.sh verify [APK]
