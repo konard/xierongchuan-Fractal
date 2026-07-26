@@ -67,6 +67,80 @@ image_digest() {
         "$image" 2> /dev/null || true
 }
 
+online_cpus() {
+    if command -v nproc > /dev/null 2>&1; then
+        nproc
+    else
+        getconf _NPROCESSORS_ONLN 2> /dev/null || echo 1
+    fi
+}
+
+# Cargo runs one `rustc` per job, and the heaviest crates of Fractal
+# (`ruma-*`, `matrix-sdk-*` and Fractal itself, all built with `opt-level = 3`)
+# need on the order of two gigabytes each. Cargo's default of one job per CPU
+# therefore asks for far more memory than an ordinary machine has as soon as it
+# has more cores than it has spare gigabytes, and the out-of-memory killer ends
+# the build somewhere in the middle of the Rust compilation.
+bytes_per_cargo_job=2147483648
+default_cargo_jobs() {
+    cpus=$(online_cpus)
+    case "$cpus" in
+        '' | *[!0-9]*) cpus=1 ;;
+    esac
+    [ "$cpus" -ge 1 ] || cpus=1
+
+    by_memory=''
+    if [ -r /proc/meminfo ]; then
+        by_memory=$(
+            awk -v per_job="$bytes_per_cargo_job" \
+                '/^MemTotal:/ { printf "%d\n", $2 * 1024 / per_job; exit }' \
+                /proc/meminfo
+        )
+    fi
+    case "$by_memory" in
+        '' | *[!0-9]*)
+            echo "$cpus"
+            return
+            ;;
+    esac
+    [ "$by_memory" -ge 1 ] || by_memory=1
+
+    if [ "$by_memory" -lt "$cpus" ]; then
+        echo "$by_memory"
+    else
+        echo "$cpus"
+    fi
+}
+
+cargo_jobs=${CARGO_BUILD_JOBS:-$(default_cargo_jobs)}
+
+disk_available_gib() {
+    df -Pk "$1" 2> /dev/null | awk 'NR == 2 { printf "%d\n", $4 / 1048576 }'
+}
+
+# Measured on a finished `app` build: the cross-compiled GTK stack and the
+# Gradle project in .pixiewood, plus the Cargo registry and target directory in
+# .android-container.
+required_disk_gib=40
+
+# Both ways this build fails on a workstation -- out of memory during the Rust
+# compilation and out of disk while packaging -- are far easier to recognise
+# before the fact than from the wreckage afterwards, and the build is long
+# enough that saying so up front is worth the two lines.
+report_build_resources() {
+    echo "Building with CARGO_BUILD_JOBS=$cargo_jobs on $(online_cpus) CPU(s)." \
+        "Set CARGO_BUILD_JOBS to override." >&2
+    available=$(disk_available_gib "$project_dir")
+    case "$available" in
+        '' | *[!0-9]*) return ;;
+    esac
+    if [ "$available" -lt "$required_disk_gib" ]; then
+        echo "Warning: only ${available} GiB are free on the filesystem of" \
+            "$project_dir, and a full Android build needs about" \
+            "${required_disk_gib} GiB in .pixiewood/ and .android-container/." >&2
+    fi
+}
+
 usage() {
     cat <<'EOF'
 Usage: build-aux/android/podman.sh <command> [arguments]
@@ -112,27 +186,80 @@ ensure_image() {
     fi
 }
 
-run_container() {
-    prepare_state
-    # Linking the Rust code of Fractal needs a few gigabytes per job, so a
-    # machine with little memory has to build with fewer jobs than it has
-    # cores. `CARGO_BUILD_JOBS` is forwarded for that, and left to Cargo's
-    # default when it is unset.
-    cargo_jobs_args=""
-    if [ -n "${CARGO_BUILD_JOBS:-}" ]; then
-        cargo_jobs_args="--env CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS"
+# `--init` is not a nicety here. Pixiewood waits for the `ninja` it launched
+# with `waitpid(-1, 0)` and aborts with `Unexpected child process N died` for
+# any PID it did not launch itself. As PID 1 of the container it is also the
+# reaper of every orphan of the build tree, so a single `rustc` left behind by
+# a `cargo` that the kernel killed ends the build with that message -- and,
+# because the container is torn down as soon as PID 1 exits, the error `cargo`
+# was about to print is lost with it. With an init process at PID 1 the orphans
+# are reaped there and a failing build reports its own error.
+# See experiments/android-orphan-reaper/.
+init_args="--init"
+
+# Podman implements `--init` with a separate `catatonit` binary, so the option
+# can be present and still not work. Rather than trade the diagnosis of one
+# obscure failure for another, the support is established once, on a container
+# that does nothing.
+ensure_init_support() {
+    if [ -n "${init_checked:-}" ]; then
+        return
     fi
+    init_checked=1
+    if engine_run true > /dev/null 2>&1; then
+        return
+    fi
+    saved_init_args=$init_args
+    init_args=""
+    if engine_run true > /dev/null 2>&1; then
+        echo "Warning: $engine cannot run this image with --init. Pixiewood" \
+            "runs as PID 1, so a build that fails may report" \
+            "'Unexpected child process N died' instead of its own error." >&2
+        return
+    fi
+    # Neither works, so --init is not the problem. Restore it and let the real
+    # command report whatever is.
+    init_args=$saved_init_args
+}
+
+engine_run() {
+    prepare_state
     # shellcheck disable=SC2086 # the args are intentionally word-split.
     "$engine" run --rm \
+        $init_args \
         $userns_args \
-        $cargo_jobs_args \
         --user "$(id -u):$(id -g)" \
         --env HOME=/workspace/.android-container/home \
         --env CARGO_HOME=/workspace/.android-container/cargo \
+        --env CARGO_BUILD_JOBS="$cargo_jobs" \
         --env GRADLE_USER_HOME=/workspace/.android-container/gradle \
         --volume "$project_dir:/workspace${volume_suffix}" \
         --workdir /workspace \
         "$image" "$@"
+}
+
+run_container() {
+    ensure_init_support
+    engine_run "$@"
+}
+
+# Every build step goes through this, so that a step that dies without an
+# error message of its own -- which is what running out of memory looks like --
+# says so instead of just ending the script.
+run_step() {
+    if run_container "$@"; then
+        return 0
+    fi
+    status=$?
+    echo >&2
+    echo "Failed with exit status $status: $*" >&2
+    if [ "$status" -eq 137 ]; then
+        echo "Exit status 137 means the process was killed with SIGKILL. On a" \
+            "build of this size that is almost always the out-of-memory" \
+            "killer. Retry with fewer parallel Rust jobs, for example" \
+            "CARGO_BUILD_JOBS=1 (currently $cargo_jobs)." >&2
+    fi
+    exit "$status"
 }
 
 command=${1:-}
@@ -167,11 +294,11 @@ case "$command" in
             exit 2
         fi
         ensure_image
-        run_container pixiewood -C /workspace prepare "$1"
+        run_step pixiewood -C /workspace prepare "$1"
         ;;
     generate)
         ensure_image
-        run_container pixiewood -C /workspace generate
+        run_step pixiewood -C /workspace generate
         ;;
     build)
         shift
@@ -186,7 +313,7 @@ case "$command" in
             usage >&2
             exit 2
         fi
-        run_container pixiewood -C /workspace build
+        run_step pixiewood -C /workspace build
         ;;
     app)
         shift
@@ -195,10 +322,11 @@ case "$command" in
             exit 2
         fi
         ensure_image
-        run_container pixiewood -C /workspace prepare android/pixiewood.xml
-        run_container pixiewood -C /workspace generate
-        run_container pixiewood -C /workspace build
-        run_container build-aux/android/verify-apk.sh "$apk_relative_path"
+        report_build_resources
+        run_step pixiewood -C /workspace prepare android/pixiewood.xml
+        run_step pixiewood -C /workspace generate
+        run_step pixiewood -C /workspace build
+        run_step build-aux/android/verify-apk.sh "$apk_relative_path"
         echo "Fractal APK: $apk_relative_path"
         ;;
     smoke)
@@ -209,11 +337,11 @@ case "$command" in
         fi
         ensure_image
         smoke_dir=experiments/android-gtk-smoke
-        run_container pixiewood -C "/workspace/$smoke_dir" prepare \
+        run_step pixiewood -C "/workspace/$smoke_dir" prepare \
             "$smoke_dir/pixiewood.xml"
-        run_container pixiewood -C "/workspace/$smoke_dir" generate
-        run_container pixiewood -C "/workspace/$smoke_dir" build
-        run_container build-aux/android/verify-apk.sh \
+        run_step pixiewood -C "/workspace/$smoke_dir" generate
+        run_step pixiewood -C "/workspace/$smoke_dir" build
+        run_step build-aux/android/verify-apk.sh \
             "$smoke_dir/$apk_relative_path"
         echo "Smoke test APK: $smoke_dir/$apk_relative_path"
         ;;

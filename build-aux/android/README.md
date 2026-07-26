@@ -77,11 +77,31 @@ The manifest uses the launcher icon in `android/data/`, and the metainfo copy
 that the Android build generates in `data/android-metainfo.xml`, because
 Pixiewood only reads metainfo elements that are in the metainfo XML namespace.
 
-Fractal's full dependency set is not yet buildable this way: Pixiewood provides
-wraps for GLib, fontconfig, cairo, gdk-pixbuf, GTK, HarfBuzz, libadwaita and
-rsvg, but not for GStreamer, GtkSourceView, glycin, libwebp, libshumate or
-SQLite, which `meson.build` requires. See `docs/android-porting-plan.md` for
-the current state of that work.
+Pixiewood provides wraps for GLib, fontconfig, cairo, gdk-pixbuf, GTK,
+HarfBuzz, libadwaita and rsvg, but not for GStreamer, GtkSourceView, glycin,
+libshumate or SQLite. Those are Cargo features of Fractal that the Android
+build turns off, each with a fallback implementation behind the same API; see
+`docs/android-porting-plan.md` for the current state of that work.
+
+### Host resources
+
+The end-to-end build compiles the whole GTK stack and every Rust dependency of
+Fractal for `aarch64`. Expect it to need about **40 GiB** of free disk in the
+checkout (`.pixiewood/` and `.android-container/`) and one to several hours.
+
+Cargo builds one crate per job, and the largest ones need roughly 2 GiB each,
+so `podman.sh` caps the number of parallel Rust jobs at whichever is smaller,
+the CPU count or one job per 2 GiB of RAM, and prints the value it chose. A
+machine that still runs out of memory -- the symptom is the build dying without
+an error, or `Killed`, somewhere in the middle of `Compiling ...` -- should be
+given a lower value explicitly:
+
+```sh
+CARGO_BUILD_JOBS=1 build-aux/android/podman.sh app
+```
+
+The build resumes where it stopped, so a retry does not repeat the work that
+already succeeded.
 
 `prepare` creates `.pixiewood/` and may create `subprojects/` wrappers; both
 are generated and ignored. `install` and `logcat` intentionally execute host
