@@ -134,6 +134,7 @@ Android `cdylib`. Это предотвращает расхождение ин�
 | 2026-07-26 | A2 | 04cdbb8 | `podman.sh app` | Закрыты две претензии из PR #4. (1) «APK не видно на host»: `app`/`smoke` больше не печатают относительный путь, а проверяют, что файл существует, и выводят абсолютный путь с размером и командой установки; если файла нет, команда падает вместо рапорта об успехе. (2) «постоянно SELinux жалуется»: bind-mount checkout'а размечался как `:Z`, то есть получал MCS-категорию, приватную для одного контейнера, и остальная система (другие контейнеры, Flatpak, файловый менеджер) теряла доступ к собственному рабочему дереву пользователя. Теперь Podman использует `:z` и только при включённом SELinux, а `FRACTAL_PODMAN_VOLUME_SUFFIX` по-прежнему позволяет задать `:Z` или пустое значение. |
 
 | 2026-07-26 | B6 | fdabcfe | `sh experiments/android-runtime-tags/test.sh`, `sh experiments/android-app-library/test.sh` | Найден и закрыт следующий гарантированный crash после B6: Pixiewood ставит файлы через `meson install --tags runtime`, а Meson пропускает всё, чему тег не угадан (`mesonbuild/minstall.py:386`, `backends.py:1635`). Схема GSettings Fractal лежит в `datadir` и тега не имела, поэтому в APK её не было, а `g_settings_new()` при отсутствии схемы делает `abort()` — окно не успело бы появиться. Схеме проставлен `install_tag: 'runtime'` (так же делает сам GTK для своих схем). По той же причине терялись переводы: `i18n.gettext()` жёстко ставит тег `i18n`, поэтому Android-сборка доустанавливает каталоги ещё раз install-скриптом с тегом `runtime`. Плюс исправлен `platform::localedir()`: он указывал на записываемый каталог пользователя, а ассеты распаковываются в первый системный data-каталог GLib. `verify-apk.sh` теперь падает, если в пакете нет `gschemas.compiled` со схемой приложения или нет ни одного `.mo`. |
+| 2026-07-26 | C1 | d170720 | `podman.sh app` (EXIT=0), `podman.sh verify`, `cargo test` в `experiments/session-data-format` | Реализовано безопасное хранение сессии на Android. Раньше `AndroidSecret` был заглушкой и ничего не хранил; теперь все сессии сериализуются в один msgpack-блоб и шифруются ключом AES-256-GCM, который держит Android Keystore и наружу не отдаёт. Формат вынесен в `src/secret/session_data.rs` (`#[cfg(any(target_os = "android", test))]`) и покрыт 5 unit-тестами (round-trip, пустой список, неподдерживаемая версия, невалидное поле, не-msgpack). JNI-мост к Keystore (`src/secret/android/keystore.rs`) достаёт JVM через `gdk_android_display_get_env` — публичный GDK API с 4.18, — захватывая её один раз на GTK main-thread (`secret::init()` из `run()`) и читая из tokio-задач. Восстановление, удаление и инвалидация ключа обработаны без panic: `is_permanent()` различает временные сбои (файл сохраняется) от постоянных (`AEADBadTagException`/`KeyPermanentlyInvalidatedException` → файл и ключ стираются), новая версия формата никогда не перезаписывается. Запись атомарна (tmp + rename), чтение-модификация-запись сериализованы `Mutex`. Полная Android-сборка проходит (`BUILD SUCCESSFUL`, APK 152 МиБ, все guard'ы `verify-apk.sh` зелёные). Хостовый эксперимент `experiments/session-data-format` прогнал сериализацию там, где нет dev-библиотек GTK, и поймал реальный баг в round-trip (обращение к `ClientId::as_str` как к функции пути не компилируется в oauth2 5.0) до устройства. Запуск на устройстве не проверялся: Android-устройства/эмулятора в этом окружении нет. |
 
 ### Текущие блокеры для APK самого Fractal
 
@@ -156,9 +157,9 @@ prepare → generate → build и выдаёт APK, который приним�
    `executable(..., android_exe_type: 'application')`. Цель собрана и
    упакована в APK.
 3. Rust-зависимости aperture, ashpd и oo7 — только Linux (пункты D4, D5).
-   Android-ветка secret storage больше не `unimplemented!()`: она возвращает
-   состояние «нет сохранённых сессий» и понятную ошибку при попытке сохранить
-   сессию, пока не подключён Android Keystore (пункты B5, C1).
+   Android-ветка secret storage реализована (пункт C1): сессии шифруются
+   ключом AES-256-GCM из Android Keystore и хранятся в одном файле песочницы.
+   `oo7`/Secret Service на Android не используются.
 
 ### Обязательные проверки после изменений
 
@@ -258,14 +259,14 @@ prepare → generate → build и выдаёт APK, который приним�
 
 ### C. Базовая работоспособность клиента
 
-- [ ] **C1.** Реализовать безопасное хранение сессии для Android.
-  - [ ] Описать узкий Rust trait для secret storage без Android типов в общем
+- [x] **C1.** Реализовать безопасное хранение сессии для Android.
+  - [x] Описать узкий Rust trait для secret storage без Android типов в общем
     слое.
-  - [ ] Реализовать Android Keystore-backed storage через Kotlin/JNI.
-  - [ ] Хранить access tokens и passphrase только за ключом Android Keystore;
+  - [x] Реализовать Android Keystore-backed storage через Kotlin/JNI.
+  - [x] Хранить access tokens и passphrase только за ключом Android Keystore;
     не использовать plaintext SharedPreferences или обычные файлы.
-  - [ ] Обработать восстановление, удаление и invalidated key без panic.
-  - [ ] Добавить тесты для сериализации и error mapping, где это возможно без
+  - [x] Обработать восстановление, удаление и invalidated key без panic.
+  - [x] Добавить тесты для сериализации и error mapping, где это возможно без
     Android device.
 - [ ] **C2.** Поддержать логин и Matrix sync.
   - [ ] Убедиться, что TLS, DNS, SQLite и crypto зависимости доступны в APK.
