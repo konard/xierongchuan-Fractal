@@ -64,9 +64,10 @@ jobs:
     name: Debug APK
     runs-on: ubuntu-latest
     # Cross-compiling the GTK stack, the Rust dependencies and Fractal itself
-    # takes well over an hour on a runner, and the whole point of this job is
-    # not to do it locally.
-    timeout-minutes: 240
+    # took 23 minutes on a runner with nothing cached, of which 17 were the
+    # application build. The limit is high enough that a slower runner still
+    # finishes and low enough that a hung build does not burn four hours.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v5
@@ -117,17 +118,12 @@ jobs:
         continue-on-error: true
         run: docker push "${{ steps.toolchain.outputs.image }}"
 
-      # `.android-container/` is the state directory the build gets instead of
-      # the home directory of the user: the Cargo home, the Gradle home and
-      # everything the two download. The Rust dependencies in it are pinned by
-      # Cargo.lock, so that is the key, and the prefix restore key lets a run
-      # whose lock file moved still start from the previous download.
-      - name: Cache the downloads of Cargo and Gradle
-        uses: actions/cache@v4
-        with:
-          path: .android-container
-          key: android-state-${{ hashFiles('Cargo.lock') }}
-          restore-keys: android-state-
+      # There is deliberately no dependency cache besides that image. The two
+      # downloads a cache could hold are not what this job spends its time on:
+      # on the last full run, Cargo fetched all 496 crates in 5 seconds and
+      # Gradle fetched its own distribution in 3, while compiling what was
+      # fetched took 17 minutes. Restoring and re-uploading those hundreds of
+      # megabytes every run would cost more than it saves.
 
       # `app` runs prepare/generate/build and then `verify-apk.sh`, which is
       # what checks minSdkVersion, the single arm64-v8a ABI, the packaged GTK

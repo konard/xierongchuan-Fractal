@@ -345,10 +345,13 @@ prepare → generate → build и выдаёт APK, который приним�
 ### F. Release engineering
 
 - [ ] **F1.** Добавить Android CI jobs.
-  - [ ] Separate debug APK job для каждого изменяющего Android кода merge
-    request.
+  - [x] Separate debug APK job для каждого изменяющего Android кода merge
+    request: `.github/workflows/android.yml` собирает и проверяет debug APK
+    и выкладывает его артефактом.
   - [ ] Nightly/integration job с emulator и `adb logcat` artifact.
-  - [ ] Кешировать зависимости по lock-файлам, не по плавающим `latest`.
+  - [x] Кешировать зависимости по lock-файлам, не по плавающим `latest`:
+    toolchain image — по контрольной сумме `Containerfile`, Cargo registry —
+    по контрольной сумме `Cargo.lock`.
 - [ ] **F2.** Проверить пакет.
   - [ ] Проверить ABI, `minSdk`, `targetSdk`, permissions и отсутствие
     отсутствующих shared libraries.

@@ -137,14 +137,16 @@ fallback, and Docker is what the runners ship. A hosted runner has the room:
 the last full run started with 88 GiB free, used 13 GiB of it and took
 23 minutes from an empty cache, of which the application build was 17.
 
-Two things are kept between runs, both keyed by the file that defines them
-rather than by a date or a floating tag:
+One thing is kept between runs: the toolchain image, pushed to
+`ghcr.io/<owner>/fractal-android-builder` under a tag derived from the checksum
+of the `Containerfile`, exactly the way `podman.sh` tags the local one. An
+unchanged recipe is pulled instead of downloading the Android SDK, the NDK and
+the Fedora typelibs again, so a change under test does not fail because one of
+those upstreams was unreachable.
 
-- the toolchain image, pushed to `ghcr.io/<owner>/fractal-android-builder`
-  under a tag derived from the checksum of the `Containerfile`, so an unchanged
-  recipe is pulled instead of downloading the Android SDK and the NDK again;
-- `.android-container/`, the Cargo and Gradle home of the build, cached under
-  the checksum of `Cargo.lock`.
+Nothing else is cached, because on a runner nothing else is worth it: Cargo
+fetched all 496 crates in 5 seconds and Gradle its own distribution in 3, while
+compiling what they fetched took 17 minutes.
 
 A pull request from a fork gets a read-only token: it builds the image in the
 job and skips the push, which costs time but never fails the build.
