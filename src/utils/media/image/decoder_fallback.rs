@@ -48,6 +48,7 @@ impl Decoder {
     ///
     /// GDK cannot decode animations, so an image always has a single frame and
     /// this always returns the same frame.
+    #[allow(clippy::unused_async)] // Same API as the glycin decoder.
     pub(crate) async fn next_frame(&self) -> Result<Frame, glib::Error> {
         Ok(Frame(self.0.clone()))
     }
@@ -71,6 +72,7 @@ impl Frame {
     /// Whether the frame has a delay, which means that the image is animated.
     ///
     /// GDK cannot decode animations, so this is always `false`.
+    #[allow(clippy::unused_self)] // Same API as the glycin frame.
     pub(crate) fn has_delay(&self) -> bool {
         false
     }
@@ -78,6 +80,7 @@ impl Frame {
     /// How long to show this frame for if the image is animated.
     ///
     /// GDK cannot decode animations, so this is always `None`.
+    #[allow(clippy::unused_self)] // Same API as the glycin frame.
     pub(crate) fn delay_duration(&self) -> Option<Duration> {
         None
     }
@@ -92,6 +95,7 @@ impl Frame {
 ///
 /// GDK always decodes an image at its natural size, so `request_dimensions` is
 /// ignored.
+#[allow(clippy::unused_async)] // Same API as the glycin decoder.
 pub(crate) async fn decode(
     source: DecoderSource,
     _request_dimensions: Option<FrameDimensions>,

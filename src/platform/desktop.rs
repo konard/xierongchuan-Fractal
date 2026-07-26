@@ -25,7 +25,7 @@ pub(crate) fn localedir() -> PathBuf {
     LOCALEDIR.into()
 }
 
-/// Register the GResources of the application.
+/// Register the `GResources` of the application.
 ///
 /// They are installed next to the binary, so they are loaded from the data
 /// directory of the application.

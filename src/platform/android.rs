@@ -12,13 +12,13 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 use super::ensure_dir;
 
-/// The GResources of the application, compiled into the library.
+/// The `GResources` of the application, compiled into the library.
 ///
-/// `FRACTAL_RESOURCES_FILE` is set by the Android build to the GResource
+/// `FRACTAL_RESOURCES_FILE` is set by the Android build to the `GResource`
 /// bundle compiled by Meson. Because the bundles are embedded, no absolute
 /// path from the desktop installation layout is needed at runtime.
 const RESOURCES: &[u8] = include_bytes!(env!("FRACTAL_RESOURCES_FILE"));
-/// The UI GResources of the application, compiled into the library.
+/// The UI `GResources` of the application, compiled into the library.
 const UI_RESOURCES: &[u8] = include_bytes!(env!("FRACTAL_UI_RESOURCES_FILE"));
 
 /// Initialize the logger, so that traces end up in `logcat`.
@@ -120,7 +120,7 @@ pub(crate) fn localedir() -> PathBuf {
     dir
 }
 
-/// Register the GResources of the application.
+/// Register the `GResources` of the application.
 pub(crate) fn register_resources() {
     for bytes in [RESOURCES, UI_RESOURCES] {
         let resource = gio::Resource::from_data(&glib::Bytes::from_static(bytes))

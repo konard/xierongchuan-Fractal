@@ -1,7 +1,7 @@
-//! Fallback video player for the platforms without GStreamer.
+//! Fallback video player for the platforms without `GStreamer`.
 //!
-//! Fractal decodes videos with GStreamer, which is not available on every
-//! platform. This widget has the same API as the GStreamer video player, but
+//! Fractal decodes videos with `GStreamer`, which is not available on every
+//! platform. This widget has the same API as the `GStreamer` video player, but
 //! it only shows a placeholder instead of the first frames of the video. The
 //! video itself can still be downloaded and opened with another application.
 

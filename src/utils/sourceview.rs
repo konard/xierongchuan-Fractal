@@ -122,7 +122,7 @@ const HIGHLIGHT_SYNTAX_PROPERTY: &str = "highlight-syntax";
 /// or `None` when the buffer does not support syntax highlighting.
 ///
 /// The property is looked up first because binding a property that does not
-/// exist panics, and a panic in a GObject callback aborts the process. That
+/// exist panics, and a panic in a `GObject` callback aborts the process. That
 /// is what happens with the plain `GtkTextBuffer` used when the `sourceview`
 /// feature is disabled.
 pub(crate) fn bind_highlight_syntax(

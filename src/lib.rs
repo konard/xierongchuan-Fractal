@@ -50,6 +50,13 @@ static MEDIA_FILE_NOTIFIER: LazyLock<OneshotNotifier> =
 /// calls it from `main()`, and the Android library calls it from the entry
 /// point of the Android runtime. Platform differences are behind
 /// [`platform`], they must not be duplicated here.
+///
+/// # Panics
+///
+/// Panics if the application cannot be initialized, which means that it cannot
+/// run at all: a missing locale directory, or GTK and its dependencies failing
+/// to start.
+#[must_use]
 pub fn run() -> glib::ExitCode {
     // Initialize logger, debug is carried out via debug!, info!, warn! and error!.
     // Default to the INFO level for this crate and WARN for everything else.
