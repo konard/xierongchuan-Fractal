@@ -192,6 +192,14 @@ if android and not build_env_only
         ],
     )
 
+    # With `android_exe_type: 'application'`, Meson turns this into a shared
+    # library called `libfractal.so`, which the Android runtime loads by the
+    # name of this target. It must be installed next to the other native
+    # libraries: the packaging step only picks up `libdir` (it becomes the
+    # `jniLibs` directory of the Android project), and it explicitly skips
+    # `bindir`. A launcher in `bindir` builds and installs fine, but it never
+    # makes it into the package, and the application dies on startup with
+    # `UnsatisfiedLinkError: dlopen failed: library "libfractal.so" not found`.
     executable(
         meson.project_name(),
         meson.project_source_root() / 'android' / 'shim' / 'main.c',
@@ -200,7 +208,7 @@ if android and not build_env_only
         install_rpath: '$ORIGIN',
         android_exe_type: 'application',
         install: true,
-        install_dir: bindir,
+        install_dir: get_option('libdir'),
     )
 elif not build_env_only
     # Build binary with cargo

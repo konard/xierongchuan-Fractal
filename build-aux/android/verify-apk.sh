@@ -9,6 +9,9 @@
 # Checked properties:
 #   * the manifest declares the expected minSdkVersion;
 #   * the package contains native libraries only for the expected ABI;
+#   * the library that the GTK runtime loads on startup, named by the
+#     `gtk.android.lib_name` meta-data of the manifest, is packaged and exports
+#     the `main` symbol that the runtime looks up in it;
 #   * the GTK/libadwaita runtime libraries are packaged;
 #   * no packaged library has a DT_NEEDED entry that is missing from the
 #     package and is not provided by the Android system itself.
@@ -73,7 +76,7 @@ else
     fail "the package has no launcher activity"
 fi
 
-abis=$(unzip -Z1 "$apk" 'lib/*' 2>/dev/null | cut -d/ -f2 | sort -u)
+abis=$(unzip -Z1 "$apk" 'lib/*/*.so' 2>/dev/null | cut -d/ -f2 | sort -u)
 if [ "$abis" = "$expected_abi" ]; then
     pass "native libraries are limited to $expected_abi"
 else
@@ -97,6 +100,36 @@ for lib in libgtk-4.so libadwaita-1.so libgio-2.0.so libglib-2.0.so \
 done
 
 unzip -q -o "$apk" "lib/$expected_abi/*.so" -d "$workdir"
+
+# The GTK runtime does not start an executable: on startup it loads the library
+# named by the `gtk.android.lib_name` meta-data of the manifest and calls the
+# `main` symbol it exports. When that library is missing from the package, or
+# does not export `main`, the application dies with an `UnsatisfiedLinkError`
+# before showing a window, so both are checked here.
+app_lib_name=$("$aapt2" dump xmltree --file AndroidManifest.xml "$apk" | awk '
+    /:name\(/ && /"gtk\.android\.lib_name"/ { found = 1; next }
+    found && /:value\(/ && match($0, /="[^"]*"/) {
+        print substr($0, RSTART + 2, RLENGTH - 3)
+        exit
+    }
+')
+if [ -z "$app_lib_name" ]; then
+    fail "the manifest declares no gtk.android.lib_name meta-data"
+else
+    app_lib="lib$app_lib_name.so"
+    if printf '%s\n' "$packaged_libs" | grep -qx "$app_lib"; then
+        pass "application library $app_lib is packaged"
+        if "$readelf" --dyn-syms "$workdir/lib/$expected_abi/$app_lib" \
+                | awk '$4 == "FUNC" && $8 == "main" { found = 1 } END { exit !found }'; then
+            pass "$app_lib exports main"
+        else
+            fail "$app_lib does not export the main symbol"
+        fi
+    else
+        fail "application library $app_lib is missing from the package"
+    fi
+fi
+
 missing_deps=""
 for so in "$workdir/lib/$expected_abi"/*.so; do
     for needed in $("$readelf" -d "$so" \
