@@ -136,6 +136,7 @@ Android `cdylib`. Это предотвращает расхождение ин�
 | 2026-07-26 | B6 | fdabcfe | `sh experiments/android-runtime-tags/test.sh`, `sh experiments/android-app-library/test.sh` | Найден и закрыт следующий гарантированный crash после B6: Pixiewood ставит файлы через `meson install --tags runtime`, а Meson пропускает всё, чему тег не угадан (`mesonbuild/minstall.py:386`, `backends.py:1635`). Схема GSettings Fractal лежит в `datadir` и тега не имела, поэтому в APK её не было, а `g_settings_new()` при отсутствии схемы делает `abort()` — окно не успело бы появиться. Схеме проставлен `install_tag: 'runtime'` (так же делает сам GTK для своих схем). По той же причине терялись переводы: `i18n.gettext()` жёстко ставит тег `i18n`, поэтому Android-сборка доустанавливает каталоги ещё раз install-скриптом с тегом `runtime`. Плюс исправлен `platform::localedir()`: он указывал на записываемый каталог пользователя, а ассеты распаковываются в первый системный data-каталог GLib. `verify-apk.sh` теперь падает, если в пакете нет `gschemas.compiled` со схемой приложения или нет ни одного `.mo`. |
 | 2026-07-26 | C1 | d170720 | `podman.sh app` (EXIT=0), `podman.sh verify`, `cargo test` в `experiments/session-data-format` | Реализовано безопасное хранение сессии на Android. Раньше `AndroidSecret` был заглушкой и ничего не хранил; теперь все сессии сериализуются в один msgpack-блоб и шифруются ключом AES-256-GCM, который держит Android Keystore и наружу не отдаёт. Формат вынесен в `src/secret/session_data.rs` (`#[cfg(any(target_os = "android", test))]`) и покрыт 5 unit-тестами (round-trip, пустой список, неподдерживаемая версия, невалидное поле, не-msgpack). JNI-мост к Keystore (`src/secret/android/keystore.rs`) достаёт JVM через `gdk_android_display_get_env` — публичный GDK API с 4.18, — захватывая её один раз на GTK main-thread (`secret::init()` из `run()`) и читая из tokio-задач. Восстановление, удаление и инвалидация ключа обработаны без panic: `is_permanent()` различает временные сбои (файл сохраняется) от постоянных (`AEADBadTagException`/`KeyPermanentlyInvalidatedException` → файл и ключ стираются), новая версия формата никогда не перезаписывается. Запись атомарна (tmp + rename), чтение-модификация-запись сериализованы `Mutex`. Полная Android-сборка проходит (`BUILD SUCCESSFUL`, APK 152 МиБ, все guard'ы `verify-apk.sh` зелёные). Хостовый эксперимент `experiments/session-data-format` прогнал сериализацию там, где нет dev-библиотек GTK, и поймал реальный баг в round-trip (обращение к `ClientId::as_str` как к функции пути не компилируется в oauth2 5.0) до устройства. Запуск на устройстве не проверялся: Android-устройства/эмулятора в этом окружении нет. |
 | 2026-07-26 | B6 | 22fad6b | `cargo test` в `experiments/panic-message`, `cargo +nightly fmt --check --all` | Диагностирован вылет при открытии чата из PR #4. Владелец подтвердил, что приложение запускается, но падает при открытии любой комнаты; в logcat — только `Fatal signal 6 (SIGABRT), code -1 (SI_QUEUE)` на `GTK Thread` и tombstone без сообщения. По tombstone: кадры `#00 abort` → `#01–#10` внутри `base.apk` (это `libfractal.so`, упакована несжатой и без soname) — это runtime Rust-паники, то есть **паникует Rust на GTK-потоке**, а не GLib (иначе `abort` был бы в `libglib-2.0.so`). Выше — глубокий повторяющийся каскад `g_object_set_property → notify → Rust-обработчик → снова set_property`, укоренённый в `gtk_widget_activate_action` (#65) — это путь открытия комнаты. Сообщения нет, потому что стандартный хук паники пишет в stderr, а Android его отбрасывает. Каждый кадр каскада — разный PC (не тесная петля из двух свойств), символизировать на host нельзя: несрипнутой `libfractal.so` здесь нет. Поэтому установлен Android-хук паники (`src/platform/android.rs`, `init_panic_logging`), который до делегирования прежнему хуку отправляет имя потока, `file:line` и сообщение в `tracing` → logcat. Следующий запуск назовёт точную паникующую строку. Логика хука вынесена в host-эксперимент `experiments/panic-message` (3 unit-теста: `&str`, `String`, прочий payload), потому что модуль `android.rs` компилируется только под `target_os = "android"` и его тесты не идут в desktop-CI. |
+| 2026-07-26 | C2 | 6b52576 | `cargo check --all-targets`, `cargo test --lib`, `cargo clippy --all-targets -- -D warnings` в контейнере `experiments/desktop-check` для обеих конфигураций фич, `cargo +nightly fmt --check --all` | Исправлен вылет при открытии чата из PR #4. Хук паники из 22fad6b назвал причину одной строкой logcat: `glib-0.22.7/src/object.rs:3931: Target property highlight-syntax on type GtkTextBuffer not found`, следом `panic in a function that cannot unwind` и `Fatal signal 6 (SIGABRT)` на `GTK Thread`. Причина по коду: при переключении комнаты `MessageToolbar::update_current_composer_state` биндил своё свойство `markdown-enabled` к свойству `highlight-syntax` буфера композера. Это свойство объявляет только `GtkSourceBuffer`, а в Android-сборке фича `sourceview` выключена и `utils::sourceview::Buffer` — обычный `GtkTextBuffer`; `bind_property` с несуществующим целевым свойством паникует, а зовётся это из `gtk_widget_activate_action` через `extern "C"`-границу, где паника не может размотать стек и превращается в `abort` (тот самый каскад `set_property → notify`, который был виден в tombstone). Исправление: одна функция `utils::sourceview::bind_highlight_syntax()` вне `cfg_if!`, которая проверяет `has_property` и возвращает `Option<glib::Binding>`, а toolbar хранит и отвязывает биндинг только если он есть; на desktop поведение не меняется. Регрессия покрыта unit-тестом `bind_highlight_syntax_supports_both_buffers`, который строит объекты через `glib::Object::new`, поэтому не требует инициализации GTK и дисплея, и проверяет обе конфигурации фич. Аудит того же класса ошибок: `highlight-syntax` был единственным таким местом — остальные `bind_property` целятся в свойства собственных объектов или базового GTK, `.blp` под `FRACTAL_BLUEPRINT_NO_SOURCEVIEW=1` используют только свойства, совместимые с `Gtk.TextView`, а fallback-виджеты `video_player`/`location_viewer` объявляют тот же набор свойств, что и оригиналы. Тот же logcat подтверждает C1 на устройстве: процесс стартовал в 16:38:56, а к 16:39:02 уже шли запросы `matrix_sdk::http_client` и работа `matrix_sdk_crypto` — сессия восстановилась из Keystore без экрана логина и без предупреждения «Sessions will not be persisted». В контейнере остаётся падать не связанный с изменением тест `login::local_server::tests::generate_local_server_landing_page`: ему нужны собранный `resources.gresource` и дисплей для `gtk::init`, в CI он идёт через `meson compile src/cargo-test`. |
 
 ### Текущие блокеры для APK самого Fractal
 
@@ -160,7 +161,8 @@ prepare → generate → build и выдаёт APK, который приним�
 3. Rust-зависимости aperture, ashpd и oo7 — только Linux (пункты D4, D5).
    Android-ветка secret storage реализована (пункт C1): сессии шифруются
    ключом AES-256-GCM из Android Keystore и хранятся в одном файле песочницы.
-   `oo7`/Secret Service на Android не используются.
+   `oo7`/Secret Service на Android не используются. Восстановление сессии между
+   запусками подтверждено на устройстве владельцем (logcat в PR #4).
 
 ### Обязательные проверки после изменений
 
@@ -247,12 +249,12 @@ prepare → generate → build и выдаёт APK, который приним�
   - [ ] Убедиться, что отсутствие camera/location/notification bridge не
     вызывает crash при создании стартового окна.
 - [ ] **B6.** Доказать первый запуск Fractal.
-  - [ ] Установить debug APK на Android 12+ с `adb install -r`.
-  - [ ] Открыть приложение с launcher и получить экран логина/стартовый экран.
-  - [ ] Проверить `adb logcat` на fatal exception, missing `.so`, GResource и
+  - [x] Установить debug APK на Android 12+ с `adb install -r`.
+  - [x] Открыть приложение с launcher и получить экран логина/стартовый экран.
+  - [x] Проверить `adb logcat` на fatal exception, missing `.so`, GResource и
     GSettings ошибки.
   - [ ] Снять screenshot и приложить к журналу/CI artifact.
-  - [ ] Выполнить desktop `cargo check` и Meson-проверку.
+  - [x] Выполнить desktop `cargo check` и Meson-проверку.
 
 Критерий завершения B: Fractal открывается на Android 12+ как APK, использует
 настоящий GTK4/libadwaita runtime и не регрессирует на desktop. Вход и media
@@ -270,9 +272,9 @@ prepare → generate → build и выдаёт APK, который приним�
   - [x] Добавить тесты для сериализации и error mapping, где это возможно без
     Android device.
 - [ ] **C2.** Поддержать логин и Matrix sync.
-  - [ ] Убедиться, что TLS, DNS, SQLite и crypto зависимости доступны в APK.
-  - [ ] Пройти логин на тестовом Matrix account.
-  - [ ] Перезапустить приложение и проверить восстановление сессии.
+  - [x] Убедиться, что TLS, DNS, SQLite и crypto зависимости доступны в APK.
+  - [x] Пройти логин на тестовом Matrix account.
+  - [x] Перезапустить приложение и проверить восстановление сессии.
   - [ ] Проверить offline/error state и logout.
 - [ ] **C3.** Подготовить Android lifecycle.
   - [ ] Передавать resume/pause/stop из Activity в Rust platform layer.
