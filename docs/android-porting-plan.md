@@ -351,8 +351,11 @@ prepare → generate → build и выдаёт APK, который приним�
     и выкладывает его артефактом.
   - [ ] Nightly/integration job с emulator и `adb logcat` artifact.
   - [x] Кешировать зависимости по lock-файлам, не по плавающим `latest`:
-    toolchain image — по контрольной сумме `Containerfile`, Cargo registry —
-    по контрольной сумме `Cargo.lock`.
+    toolchain image — по контрольной сумме `Containerfile` (в нём же закреплены
+    версии SDK/NDK/Rust/Pixiewood). Кеша Cargo и Gradle нет намеренно: по
+    замерам в CI 496 crates скачиваются за 5 секунд, дистрибутив Gradle — за 3,
+    против 17 минут компиляции, так что перекладывание сотен мегабайт стоит
+    дороже, чем экономит.
 - [ ] **F2.** Проверить пакет.
   - [ ] Проверить ABI, `minSdk`, `targetSdk`, permissions и отсутствие
     отсутствующих shared libraries.
