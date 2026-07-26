@@ -92,6 +92,12 @@ configure_file(
     configuration: gschema_conf,
     install: true,
     install_dir: datadir / 'glib-2.0' / 'schemas',
+    # The application cannot start without its schema: `g_settings_new()`
+    # aborts when it is not installed. Meson guesses no tag for a file under
+    # `datadir`, and an untagged file is skipped by `meson install --tags
+    # runtime`, which is how the Android package is assembled. GTK tags its own
+    # schemas the same way.
+    install_tag: 'runtime',
 )
 # Validate GSchema
 if glib_compile_schemas.found()

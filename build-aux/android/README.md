@@ -83,6 +83,23 @@ libshumate or SQLite. Those are Cargo features of Fractal that the Android
 build turns off, each with a fallback implementation behind the same API; see
 `docs/android-porting-plan.md` for the current state of that work.
 
+### Install tags
+
+Pixiewood assembles the package from `meson install --tags runtime`, and Meson
+skips every installed file whose tag is not in that list. It guesses `runtime`
+only for what lands in `bindir` or looks like a shared library, so anything the
+application needs at runtime from `datadir` has to say so explicitly. Two files
+of Fractal did not:
+
+- the GSettings schema, which is now installed with `install_tag: 'runtime'`,
+  the same way GTK installs its own schemas. Without it `g_settings_new()`
+  aborts the process before a window appears;
+- the translations, which `i18n.gettext()` always tags `i18n`. The Android
+  build installs a second, `runtime`-tagged copy of them through
+  `install-translations.sh`, so that the package is not English-only.
+
+`verify-apk.sh` fails when either is missing from the package.
+
 ### Host resources
 
 The end-to-end build compiles the whole GTK stack and every Rust dependency of

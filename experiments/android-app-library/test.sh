@@ -19,6 +19,10 @@
 # library named by the manifest is missing from the package or does not export
 # `main`. That guard is what this test exercises, with fake SDK tools and
 # hand-made packages, so it needs neither the Android SDK nor a build.
+#
+# The same test covers the guard for the other half of the installation: the
+# compiled GSettings schemas, which are shipped as an asset. Without the schema
+# of the application, `g_settings_new()` aborts the process just as silently.
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -90,14 +94,17 @@ check_output() {
 runtime_libs='libgtk-4.so libadwaita-1.so libgio-2.0.so libglib-2.0.so
 libpango-1.0.so libcairo.so libgdk_pixbuf-2.0.so libfractal_android.so'
 
-# Build a package. The single argument describes the application library:
+# Build a package. The first argument describes the application library:
 # `packaged` (installed into `libdir`), `missing` (installed into `bindir`, so
-# dropped by Pixiewood) or `no-main` (packaged, but not an application).
+# dropped by Pixiewood) or `no-main` (packaged, but not an application). The
+# second describes the compiled GSettings schemas asset: `present`, `foreign`
+# (compiled, but without the schema of the application) or `missing`. The third
+# describes the translation catalogues: `present` or `missing`.
 make_apk() {
     stage="$work_dir/stage"
     apk="$work_dir/app.apk"
     rm -rf "$stage" "$apk"
-    mkdir -p "$stage/lib/$abi"
+    mkdir -p "$stage/lib/$abi" "$stage/assets/share/glib-2.0/schemas"
 
     for lib in $runtime_libs; do
         printf 'NEEDED libc.so\n' > "$stage/lib/$abi/$lib"
@@ -113,15 +120,40 @@ make_apk() {
                 > "$stage/lib/$abi/libfractal.so"
             ;;
         missing) ;;
-        *) echo "unknown case: $1" >&2; exit 2 ;;
+        *) echo "unknown library case: $1" >&2; exit 2 ;;
     esac
 
-    (cd "$stage" && zip -q -r "$apk" lib)
+    case "$3" in
+        present)
+            for lang in de ru; do
+                mkdir -p "$stage/assets/share/locale/$lang/LC_MESSAGES"
+                printf 'catalogue\n' \
+                    > "$stage/assets/share/locale/$lang/LC_MESSAGES/fractal.mo"
+            done
+            ;;
+        missing) ;;
+        *) echo "unknown translations case: $3" >&2; exit 2 ;;
+    esac
+
+    schemas="$stage/assets/share/glib-2.0/schemas/gschemas.compiled"
+    case "$2" in
+        present)
+            printf 'GVariant\0org.gtk.Settings.FileChooser\0org.gnome.Fractal\0' \
+                > "$schemas"
+            ;;
+        foreign)
+            printf 'GVariant\0org.gtk.Settings.FileChooser\0' > "$schemas"
+            ;;
+        missing) rm -f "$schemas" ;;
+        *) echo "unknown schemas case: $2" >&2; exit 2 ;;
+    esac
+
+    (cd "$stage" && zip -q -r "$apk" lib assets)
 }
 
 log="$work_dir/verify.log"
 verify() {
-    make_apk "$1"
+    make_apk "$1" "${3:-present}" "${4:-present}"
     FAKE_AAPT2_XMLTREE="${2:-$xmltree}" \
         sh "$verify_apk" "$apk" > "$log" 2>&1 && echo 0 || echo $?
 }
@@ -148,6 +180,33 @@ check "a manifest without the meta-data fails" \
     "$(verify packaged "$xmltree_without_lib_name")" 1
 check_output "the missing meta-data is reported" \
     "FAIL: the manifest declares no gtk.android.lib_name meta-data"
+
+# 5. The complete package also reports its schemas.
+check "a complete package still passes" "$(verify packaged "$xmltree" present)" 0
+check_output "the schemas are reported" \
+    "ok: compiled GSettings schemas are packaged"
+check_output "the schema of the application is reported" \
+    "ok: the schema of org.gnome.Fractal is compiled in"
+
+# 6. The schemas are compiled, but not the one the application reads: GLib
+#    aborts on the first `g_settings_new()`.
+check "a package without the schema of the application fails" \
+    "$(verify packaged "$xmltree" foreign)" 1
+check_output "the missing schema is reported" \
+    "FAIL: the schemas contain no schema for org.gnome.Fractal"
+
+# 7. The schemas are not packaged at all.
+check "a package without compiled schemas fails" \
+    "$(verify packaged "$xmltree" missing)" 1
+check_output "the missing schemas asset is reported" \
+    "FAIL: assets/share/glib-2.0/schemas/gschemas.compiled is missing from the package"
+
+# 8. The translations were dropped by the same install tag filter as the
+#    schema, and an English-only package is not a working translated one.
+check "a package without translations fails" \
+    "$(verify packaged "$xmltree" present missing)" 1
+check_output "the missing translations are reported" \
+    "FAIL: no translation of fractal is packaged"
 
 if [ "$failures" -eq 0 ]; then
     echo "All checks passed."

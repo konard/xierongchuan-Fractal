@@ -13,12 +13,15 @@
 #     `gtk.android.lib_name` meta-data of the manifest, is packaged and exports
 #     the `main` symbol that the runtime looks up in it;
 #   * the GTK/libadwaita runtime libraries are packaged;
+#   * the compiled GSettings schemas are among the assets and contain the
+#     schema of the application, and the translations are among them too;
 #   * no packaged library has a DT_NEEDED entry that is missing from the
 #     package and is not provided by the Android system itself.
 set -eu
 
 expected_min_sdk=${FRACTAL_ANDROID_MIN_SDK:-31}
 expected_abi=${FRACTAL_ANDROID_ABI:-arm64-v8a}
+gettext_package=${FRACTAL_GETTEXT_PACKAGE:-fractal}
 # Libraries that Android itself provides to applications (NDK stable ABI).
 system_libs="libc.so libm.so libdl.so liblog.so libz.so libandroid.so \
 libEGL.so libGLESv1_CM.so libGLESv2.so libGLESv3.so libOpenSLES.so \
@@ -128,6 +131,40 @@ else
     else
         fail "application library $app_lib is missing from the package"
     fi
+fi
+
+# Everything that is not a native library is shipped as an asset and unpacked
+# into the data directory of the application on first start. GSettings schemas
+# are the part of it the application cannot start without: `g_settings_new()`
+# aborts the process when the schema of the application is not installed, which
+# on Android is a `SIGABRT` with no window ever appearing.
+schemas_asset=assets/share/glib-2.0/schemas/gschemas.compiled
+schemas=$workdir/gschemas.compiled
+if unzip -p "$apk" "$schemas_asset" > "$schemas" 2> /dev/null && [ -s "$schemas" ]; then
+    pass "compiled GSettings schemas are packaged"
+    package_name=$(printf '%s\n' "$badging" \
+        | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)
+    if [ -z "$package_name" ]; then
+        fail "the manifest declares no package name"
+    elif grep -qa -- "$package_name" "$schemas"; then
+        pass "the schema of $package_name is compiled in"
+    else
+        fail "the schemas contain no schema for $package_name"
+    fi
+else
+    fail "$schemas_asset is missing from the package"
+fi
+
+# The translations are shipped the same way, and were dropped by the same
+# filter: `i18n.gettext()` tags them `i18n`, so `meson install --tags runtime`
+# left the package English-only.
+catalogues=$(unzip -Z1 "$apk" \
+    "assets/share/locale/*/LC_MESSAGES/$gettext_package.mo" 2> /dev/null \
+    | wc -l)
+if [ "$catalogues" -gt 0 ]; then
+    pass "$catalogues translations are packaged"
+else
+    fail "no translation of $gettext_package is packaged"
 fi
 
 missing_deps=""
