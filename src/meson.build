@@ -161,6 +161,14 @@ if android and not build_env_only
         # package has no installation prefix to load them from at runtime.
         'FRACTAL_RESOURCES_FILE=' + resources.full_path(),
         'FRACTAL_UI_RESOURCES_FILE=' + ui_resources.full_path(),
+        # An APK is not stripped when it is packaged, so the full DWARF of a
+        # development build ends up on the device: it made the package roughly
+        # five times as large as the code in it. Line tables are what a
+        # backtrace from `logcat` actually needs, and they cost a fraction of
+        # that. Only the workspace crates are affected -- the dependencies are
+        # already built without debug information, see `[profile.dev.package]`
+        # in the root `Cargo.toml`.
+        'CARGO_PROFILE_DEV_DEBUG=line-tables-only',
     ]
 
     android_lib = custom_target(
