@@ -1,0 +1,167 @@
+# Build the Android APK on CI instead of on a workstation.
+#
+# The Android toolchain image and the build tree together need about 20 GiB of
+# disk and several gigabytes of memory, which is more than a development
+# machine usually has to spare. Everything the build needs is already described
+# by `build-aux/android/Containerfile` and driven by
+# `build-aux/android/podman.sh`, so this workflow only has to provide a machine
+# with enough room and run the same commands a developer would.
+#
+# The desktop pipeline stays on GitLab (`.gitlab-ci.yml`). This workflow is
+# Android-only and never touches it.
+#
+# The path filters list everything that ends up in the APK. Anything else --
+# documentation, the Flatpak manifests, the GitLab pipeline -- cannot change
+# it, and this build is too long to run for those. GitHub Actions does not
+# support YAML anchors, so the list is written out twice.
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "android/**"
+      - "build-aux/android/**"
+      - "data/**"
+      - "po/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "meson.build"
+      - "meson.options"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "android/**"
+      - "build-aux/android/**"
+      - "data/**"
+      - "po/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "meson.build"
+      - "meson.options"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+# A branch only needs the APK of its latest commit.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Needed to store the toolchain image in the container registry of the
+  # repository, see the `Publish the toolchain image` step.
+  packages: write
+
+env:
+  # GitHub runners ship Docker, not Podman.
+  FRACTAL_CONTAINER_ENGINE: docker
+
+jobs:
+  apk:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    # Cross-compiling the GTK stack, the Rust dependencies and Fractal itself
+    # takes well over an hour on a runner, and the whole point of this job is
+    # not to do it locally.
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # A hosted runner arrives with about 20 GiB free, which is what the build
+      # tree alone needs before the toolchain image is even pulled. The
+      # preinstalled toolchains that this build has no use for are worth more
+      # than that again.
+      - name: Free the disk space the build needs
+        run: |
+          set -eu
+          df -h /
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/local/share/powershell \
+            /usr/share/dotnet \
+            /usr/share/swift
+          sudo docker image prune --all --force
+          df -h /
+
+      # The image is tagged with the checksum of the recipe it was built from,
+      # the same way `podman.sh` labels the local one, so a change to the
+      # Containerfile builds a new image instead of reusing a stale one. Every
+      # later run of an unchanged recipe pulls it and saves the twenty minutes
+      # of downloading the Android SDK and the NDK again.
+      - name: Reuse the published toolchain image
+        id: toolchain
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -eu
+          owner=$(echo "$REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          digest=$(sha256sum build-aux/android/Containerfile | cut -c1-16)
+          image="ghcr.io/$owner/fractal-android-builder:$digest"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+          printf '%s' "$REGISTRY_TOKEN" \
+            | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin \
+            || echo "Not logged in to the registry; a private image cannot be reused."
+          if docker pull --quiet "$image"; then
+            echo "cached=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cached=false" >> "$GITHUB_OUTPUT"
+            echo "No image for this Containerfile yet; it is built by this run."
+          fi
+
+      - name: Build the toolchain image
+        if: steps.toolchain.outputs.cached != 'true'
+        env:
+          FRACTAL_ANDROID_IMAGE: ${{ steps.toolchain.outputs.image }}
+        run: build-aux/android/podman.sh image
+
+      # Publishing before the application build, not after: an image that took
+      # twenty minutes to build is worth keeping even when the build that
+      # follows it fails. A pull request from a fork gets a read-only token, so
+      # the push is expected to fail there and must not fail the job.
+      - name: Publish the toolchain image
+        if: steps.toolchain.outputs.cached != 'true'
+        continue-on-error: true
+        run: docker push "${{ steps.toolchain.outputs.image }}"
+
+      # Cargo downloads the dependencies into the state directory of the
+      # container. They are pinned by Cargo.lock, so the key is the lock file
+      # itself rather than a date or a floating tag.
+      - name: Cache the Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .android-container/cargo/registry
+            .android-container/cargo/git
+          key: android-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: android-cargo-
+
+      # `app` runs prepare/generate/build and then `verify-apk.sh`, which is
+      # what checks minSdkVersion, the single arm64-v8a ABI, the packaged GTK
+      # runtime and the resolvable `DT_NEEDED` entries.
+      - name: Build and verify the APK
+        env:
+          FRACTAL_ANDROID_IMAGE: ${{ steps.toolchain.outputs.image }}
+        run: build-aux/android/podman.sh app
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: fractal-android-debug-apk
+          path: .pixiewood/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          if-no-files-found: error
+
+      - name: Report the disk usage of the build
+        if: always()
+        run: |
+          df -h /
+          du -sh .pixiewood .android-container 2> /dev/null || true

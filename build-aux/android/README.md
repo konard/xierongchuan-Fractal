@@ -126,6 +126,37 @@ CARGO_BUILD_JOBS=1 build-aux/android/podman.sh app
 The build resumes where it stopped, so a retry does not repeat the work that
 already succeeded.
 
+### Building on CI
+
+A machine that does not have those 20 GiB to spare does not have to build the
+package at all: `.github/workflows/android.yml` runs the very same commands on
+a GitHub Actions runner and uploads the result as the
+`fractal-android-debug-apk` artifact. The workflow frees the preinstalled
+toolchains that a hosted runner does not need here, then runs `podman.sh image`
+and `podman.sh app` with Docker as the engine -- the script accepts it as a
+fallback, and Docker is what the runners ship.
+
+Two things are kept between runs, both keyed by the file that defines them
+rather than by a date or a floating tag:
+
+- the toolchain image, pushed to `ghcr.io/<owner>/fractal-android-builder`
+  under a tag derived from the checksum of the `Containerfile`, so an unchanged
+  recipe is pulled instead of downloading the Android SDK and the NDK again;
+- the Cargo registry, cached under the checksum of `Cargo.lock`.
+
+A pull request from a fork gets a read-only token: it builds the image in the
+job and skips the push, which costs time but never fails the build.
+
+The workflow can also be started by hand, for a branch that has not opened a
+pull request yet:
+
+```sh
+gh workflow run android.yml --ref BRANCH
+```
+
+The desktop pipeline is unaffected. It stays on GitLab (`.gitlab-ci.yml`), and
+this workflow only runs for changes that can end up in the APK.
+
 ### Package size
 
 The APK is a development build, but it is not a debugging one: the Rust
