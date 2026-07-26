@@ -70,6 +70,10 @@ pub fn run() -> glib::ExitCode {
     #[cfg(target_os = "linux")]
     aperture::init(APP_ID);
 
+    // Capture what the secret backend needs from the main thread before any
+    // session work is spawned onto the tokio runtime.
+    secret::init();
+
     // Resources must be registered before the first widget is created.
     platform::register_resources();
 

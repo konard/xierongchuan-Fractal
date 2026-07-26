@@ -1,0 +1,19 @@
+[package]
+name = "session-data-format"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Mirrors the runtime dependencies that `src/secret/session_data.rs` uses, so
+# the platform-independent session format can be exercised on the host, where
+# the full GTK build is not available.
+[dependencies]
+matrix-sdk = { version = "0.18", default-features = false }
+ruma = "0.16"
+serde = { version = "1", features = ["derive"] }
+rmp-serde = "1"
+url = "2"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+thiserror = "2"
+
+[workspace]

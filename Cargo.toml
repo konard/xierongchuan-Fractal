@@ -160,6 +160,9 @@ features = [
 # storage of the Matrix SDK is compiled from source instead.
 libsqlite3-sys = { version = "0.35", features = ["bundled"] }
 tracing-android = "0.2"
+# Android has no Secret Service. The sessions are encrypted with a key of the
+# Android Keystore instead, which is reached through JNI.
+jni = "0.21"
 
 # Linux-only dependencies.
 [target.'cfg(target_os = "linux")'.dependencies]

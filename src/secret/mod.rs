@@ -20,6 +20,8 @@ mod android;
 mod file;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(any(target_os = "android", test))]
+mod session_data;
 
 use self::file::SecretFile;
 use crate::{
@@ -44,6 +46,17 @@ cfg_if::cfg_if! {
         /// The secret API.
         pub(crate) type Secret = unimplemented::UnimplementedSecret;
     }
+}
+
+/// Initialize the secret backend.
+///
+/// This must run on the main thread, after `gtk::init()`. Only Android needs
+/// it, to capture the Java virtual machine while on a thread that is attached
+/// to it, so that the sessions can later be encrypted with a key of the Android
+/// Keystore from the tokio runtime.
+pub(crate) fn init() {
+    #[cfg(target_os = "android")]
+    android::init();
 }
 
 /// Trait implemented by secret backends.
