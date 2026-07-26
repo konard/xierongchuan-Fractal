@@ -121,9 +121,19 @@ are generated and ignored. `install` and `logcat` intentionally execute host
 the container command line from the host.
 
 The source checkout is mounted read/write so generated APKs are available on
-the host. On SELinux hosts the default `:Z` mount relabels the checkout for the
-container. If the environment does not support this option, run commands with
-`FRACTAL_PODMAN_VOLUME_SUFFIX=`.
+the host, and `app` prints the absolute path of the package it produced.
+
+On an SELinux host with Podman, the mount is relabelled with `:z`, which gives
+the checkout the shared `container_file_t` label. It is deliberately not `:Z`:
+that assigns an MCS category private to a single container, and everything else
+SELinux confines -- another container, a Flatpak application, the file manager
+-- is then denied access to your own source tree. Podman on a host without
+SELinux gets no suffix at all. Both can be overridden, including with an empty
+value to skip relabelling:
+
+```sh
+FRACTAL_PODMAN_VOLUME_SUFFIX=:Z build-aux/android/podman.sh app
+```
 
 ## Reproducibility and current limitation
 

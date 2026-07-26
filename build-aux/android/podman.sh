@@ -33,9 +33,33 @@ command -v "$engine" > /dev/null 2>&1 || {
 
 # Only Podman relabels volumes for SELinux, and only Podman maps the host user
 # into the container namespace with --userns=keep-id.
+#
+# The relabelling is `:z`, not `:Z`. `:Z` gives the whole checkout an MCS
+# category private to a single container, so the source tree stops being
+# readable for everything else on the host that SELinux confines -- other
+# containers, Flatpak applications, the file manager -- until something
+# relabels it back. On an enforcing system that is a stream of denials about
+# your own working directory. `:z` labels the content `container_file_t`
+# without a private category, which is what a shared bind mount of a checkout
+# needs. Set FRACTAL_PODMAN_VOLUME_SUFFIX to override, for example to `:Z` for
+# an isolated checkout or to an empty value to skip relabelling entirely.
+selinux_enabled() {
+    if command -v selinuxenabled > /dev/null 2>&1; then
+        selinuxenabled
+    else
+        [ -r /sys/fs/selinux/enforce ]
+    fi
+}
+
 case "$engine" in
     *podman*)
-        volume_suffix=${FRACTAL_PODMAN_VOLUME_SUFFIX:-:Z}
+        if [ -n "${FRACTAL_PODMAN_VOLUME_SUFFIX+set}" ]; then
+            volume_suffix=$FRACTAL_PODMAN_VOLUME_SUFFIX
+        elif selinux_enabled; then
+            volume_suffix=:z
+        else
+            volume_suffix=''
+        fi
         userns_args="--userns=keep-id"
         ;;
     *)
@@ -139,6 +163,23 @@ report_build_resources() {
             "$project_dir, and a full Android build needs about" \
             "${required_disk_gib} GiB in .pixiewood/ and .android-container/." >&2
     fi
+}
+
+# The package is written inside the bind-mounted checkout, so it is on the host
+# as soon as the build ends. Reporting where it is, with its size, is how the
+# build says so: a relative path alone leaves it unclear whether the file
+# really made it out of the container.
+report_apk() {
+    label=$1
+    apk="$project_dir/$2"
+    if [ ! -f "$apk" ]; then
+        echo "$label was not produced: no file at $apk" >&2
+        exit 1
+    fi
+    size=$(du -h "$apk" 2> /dev/null | cut -f1)
+    echo "$label: $apk${size:+ ($size)}"
+    echo "Install it on a connected device with:" \
+        "build-aux/android/podman.sh install $2"
 }
 
 usage() {
@@ -331,7 +372,7 @@ case "$command" in
         run_step pixiewood -C /workspace generate
         run_step pixiewood -C /workspace build
         run_step build-aux/android/verify-apk.sh "$apk_relative_path"
-        echo "Fractal APK: $apk_relative_path"
+        report_apk "Fractal APK" "$apk_relative_path"
         ;;
     smoke)
         shift
@@ -347,7 +388,7 @@ case "$command" in
         run_step pixiewood -C "/workspace/$smoke_dir" build
         run_step build-aux/android/verify-apk.sh \
             "$smoke_dir/$apk_relative_path"
-        echo "Smoke test APK: $smoke_dir/$apk_relative_path"
+        report_apk "Smoke test APK" "$smoke_dir/$apk_relative_path"
         ;;
     verify)
         shift
