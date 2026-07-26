@@ -86,8 +86,10 @@ build turns off, each with a fallback implementation behind the same API; see
 ### Host resources
 
 The end-to-end build compiles the whole GTK stack and every Rust dependency of
-Fractal for `aarch64`. Expect it to need about **40 GiB** of free disk in the
-checkout (`.pixiewood/` and `.android-container/`) and one to several hours.
+Fractal for `aarch64`. It leaves about **8 GiB** in the checkout
+(`.pixiewood/`, `.android-container/` and `subprojects/`) next to the **5 GiB**
+of the toolchain image; `podman.sh` warns when less than 20 GiB is free. On six
+cores it takes a little over half an hour.
 
 Cargo builds one crate per job, and the largest ones need roughly 2 GiB each,
 so `podman.sh` caps the number of parallel Rust jobs at whichever is smaller,
@@ -102,6 +104,16 @@ CARGO_BUILD_JOBS=1 build-aux/android/podman.sh app
 
 The build resumes where it stopped, so a retry does not repeat the work that
 already succeeded.
+
+### Package size
+
+The APK is a development build, but it is not a debugging one: the Rust
+workspace is compiled with line tables instead of full DWARF, and
+`gradle-init.gradle` points the Android Gradle Plugin at the pinned NDK so that
+it strips the native libraries it packages. Without both, the symbol tables are
+five times the size of the code and the package grows from about 150 MiB to
+about 770 MiB. Unstripped copies of every library stay in `.pixiewood/` for
+`llvm-symbolizer`.
 
 `prepare` creates `.pixiewood/` and may create `subprojects/` wrappers; both
 are generated and ignored. `install` and `logcat` intentionally execute host
